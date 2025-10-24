@@ -22,5 +22,12 @@ namespace StudentManagementSystem.Controllers
             var result = await _yearsRepository.AddAcademicYearAsync(academicYearDto);
             return Ok(result);
         }
+
+        [HttpGet("get-academic-years")]
+        public async Task<IActionResult> GetAcademicYears()
+        {
+            var result = await _yearsRepository.GetAcademicYearsAsync();
+            return Ok(result);
+        }
     }
 }

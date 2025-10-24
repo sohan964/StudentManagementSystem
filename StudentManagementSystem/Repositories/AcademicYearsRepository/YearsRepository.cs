@@ -24,5 +24,30 @@ namespace StudentManagementSystem.Repositories.AcademicYearsRepository
             var result = await command.ExecuteNonQueryAsync();
             return new Response<object>(true, $"year add {result}", result);
         }
+
+        public async Task<Response<List<AcademicYearDto>>> GetAcademicYearsAsync()
+        {
+            using var connection = new SqlConnection(connectionString);
+            using var command = new SqlCommand("spGetAcademicYears", connection)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+            var yearList = new List<AcademicYearDto>();
+            while(await reader.ReadAsync())
+            {
+                yearList.Add(new AcademicYearDto()
+                {
+                    Year_id = reader.GetInt32(0),
+                    Year_lable = reader.GetString(1),
+                    Start_date = DateOnly.FromDateTime(reader.GetDateTime(2)),
+                    End_date = DateOnly.FromDateTime(reader.GetDateTime(3)),
+                    Is_active = reader.GetBoolean(4),
+                });
+            }
+            return new Response<List<AcademicYearDto>>(true, "academic year list", yearList);
+        }
     }
 }

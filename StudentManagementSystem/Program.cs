@@ -10,6 +10,7 @@ using StudentManagementSystem.Repositories.DepartmentRepositories;
 using StudentManagementSystem.Repositories.ClassesRepositories;
 using StudentManagementSystem.Repositories.SubjectsRepositories;
 using StudentManagementSystem.Repositories.AcademicYearsRepository;
+using StudentManagementSystem.Repositories.SectionsRepositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +31,8 @@ builder.Services.AddTransient<IAuthRepository, AuthRepository>();
 builder.Services.AddTransient<IDepartmentRepository, DepartmentRepository>();
 builder.Services.AddTransient<IClassesRepository, ClassesRepository>();
 builder.Services.AddTransient<ISubjectsRepository, SubjectsRepository>();
-builder.Services.AddTransient<IYearsRepository, YearsRepository>();    
+builder.Services.AddTransient<IYearsRepository, YearsRepository>();
+builder.Services.AddTransient<ISectionsRepository, SectionsRepository>();
 
 //jwt
 builder.Services.AddAuthentication(option =>
