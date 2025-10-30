@@ -76,6 +76,23 @@ namespace StudentManagementSystem.Repositories.AuthRepositories
             });
         }
 
+        public async Task<Response<object>> GetUserByEmailAsync(string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null) return new Response<object>(false, "Not found", user);
+            var role = await _userManager.GetRolesAsync(user);
+            return  new Response<object>(true, "The current user",
+                new
+                {
+                    user.FullName,
+                    user.Email,
+                    user.Id,
+                    role,
+                    user.PhoneNumber,
+                    user.UserName
+                });
+        }
+
         //JWT token Generator
         private JwtSecurityToken GetToken(List<Claim> authClaims)
         {
