@@ -30,6 +30,13 @@ namespace StudentManagementSystem.Controllers
             return Ok(result);
         }
 
+        [HttpGet("departmet-sections/{departmentId}")]
+        public async Task<IActionResult> GetSectionsByDepartmentId([FromRoute] int departmentId)
+        {
+            var result = await _sectionsRepository.GetSectionsByDepartmentIdAsync(departmentId);
+            return Ok(result);
+        }
+
         
 
     }

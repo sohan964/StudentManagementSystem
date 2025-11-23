@@ -1,0 +1,845 @@
+﻿CREATE TABLE Departments (
+    department_id INT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(100) NOT NULL,
+    code NVARCHAR(20),
+    description NVARCHAR(MAX)
+);
+
+CREATE TABLE Classes (
+    class_id INT IDENTITY(1,1) PRIMARY KEY,
+    class_name NVARCHAR(20) NOT NULL,
+    is_secondary BIT DEFAULT 0,
+    description NVARCHAR(255)
+);
+
+CREATE TABLE Subjects (
+    subject_id INT IDENTITY(1,1) PRIMARY KEY,
+    subject_code NVARCHAR(30),
+    name NVARCHAR(150) NOT NULL,
+    is_theory BIT DEFAULT 1,
+    is_practical BIT DEFAULT 0,
+    default_marks INT DEFAULT 100,
+	department_id INT NULL
+	CONSTRAINT FK_subjects_departments FOREIGN KEY (department_id) REFERENCES departments(department_id)
+);
+
+ALTER TABLE Subjects
+ADD department_id INT NULL
+CONSTRAINT FK_subjects_departments FOREIGN KEY (department_id) REFERENCES departments(department_id);
+
+ALTER TABLE Subjects 
+ADD credit_hours INT DEFAULT 1;
+
+
+select * From Departments
+select *From Subjects
+select * FROM Classes
+select * from ClassSubjects
+
+CREATE TABLE Academic_years (
+    year_id INT IDENTITY(1,1) PRIMARY KEY,
+    year_label NVARCHAR(30) NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    is_active BIT DEFAULT 0
+);
+
+
+CREATE TABLE Sections (
+    section_id INT IDENTITY(1,1) PRIMARY KEY,
+    class_id INT NULL,
+    section_name NVARCHAR(10) NOT NULL,
+    capacity INT DEFAULT 0,
+    CONSTRAINT FK_sections_classes FOREIGN KEY (class_id) REFERENCES Classes(class_id)
+);
+
+ALTER TABLE Sections
+ADD department_id INT NULL,
+CONSTRAINT FK_sections_departments FOREIGN KEY (department_id) REFERENCES Departments(department_id);
+
+
+Select * From Sections
+Select * from Departments
+select * From Students
+select * from Teachers
+select * from AspNetUsers
+select *from Subjects
+--create sp of Sections
+
+CREATE PROCEDURE spAddSection
+    @class_id INT,
+    @section_name NVARCHAR(10),
+    @capacity INT,
+    @department_id INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Check if a section with same name and same department already exists
+    IF EXISTS (
+        SELECT 1 
+        FROM Sections
+        WHERE section_name = @section_name
+          AND department_id = @department_id
+    )
+    BEGIN
+        SELECT 'This department already has a section with this name' AS Message;
+        RETURN;
+    END
+
+    -- Insert if not exists
+    INSERT INTO Sections(class_id, section_name, capacity, department_id)
+    VALUES(@class_id, @section_name, @capacity, @department_id);
+
+    SELECT 'Section added successfully' AS Message;
+END
+
+CREATE PROCEDURE spGetSections
+AS
+BEGIN
+	SELECT * FROM Sections
+END
+
+--get sections by department_id
+CREATE PROCEDURE spGetSectionsByDepartmentId 
+	@department_id INT
+AS
+BEGIN
+	Select * FROM Sections WHERE department_id = @department_id;
+END
+--END section SP
+
+
+CREATE TABLE Teachers (
+    teacher_id INT IDENTITY(1,1) PRIMARY KEY,
+    user_id NVARCHAR(450) NULL,  -- AspNetUsers.Id is NVARCHAR(450)
+    teacher_code NVARCHAR(50),
+    first_name NVARCHAR(80),
+    last_name NVARCHAR(80),
+    department_id INT NULL,
+    contact NVARCHAR(50),
+    hire_date DATE,
+    CONSTRAINT FK_teachers_users FOREIGN KEY (user_id) REFERENCES AspNetUsers(Id),
+    CONSTRAINT FK_teachers_departments FOREIGN KEY (department_id) REFERENCES Departments(department_id)
+);
+ALTER TABLE Teachers
+ADD photo NVARCHAR(255) NULL;
+
+--Start SP Teachers
+--Create Teacher SP
+CREATE PROCEDURE spAddTeacher
+    @user_id NVARCHAR(450),
+    @teacher_code NVARCHAR(50),
+    @first_name NVARCHAR(80),
+    @last_name NVARCHAR(80),
+    @department_id INT,
+    @contact NVARCHAR(80),
+    @hire_date DATE,
+    @photo NVARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- Insert into Teachers table
+        INSERT INTO Teachers (user_id, teacher_code, first_name, last_name, department_id, contact, hire_date, photo)
+        VALUES (@user_id, @teacher_code, @first_name, @last_name, @department_id, @contact, @hire_date, @photo);
+
+        -- Optional: remove old role mapping (if needed)
+        DELETE FROM AspNetUserRoles WHERE UserId = @user_id;
+
+        -- Assign the 'Teacher' role (ensure this ID exists in AspNetRoles)
+        INSERT INTO AspNetUserRoles (UserId, RoleId)
+        VALUES (@user_id, 2);  -- 2 = Teacher role id
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+
+--get teachers list
+CREATE PROCEDURE spGetTeachers
+AS
+BEGIN
+	SELECT * FROM Teachers
+END;
+
+--get all teachers with join tables
+CREATE PROCEDURE spGetAllTeachers
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        t.teacher_id,
+        t.teacher_code,
+        t.first_name,
+        t.last_name,
+        t.department_id,
+        d.name AS department_name,
+        t.contact,
+        t.hire_date,
+        t.photo,
+        u.Id AS user_id,
+        u.UserName,
+        u.Email,
+        u.PhoneNumber
+    FROM Teachers AS t
+    INNER JOIN AspNetUsers AS u ON t.user_id = u.Id
+    LEFT JOIN Departments AS d ON t.department_id = d.department_id;
+END
+
+
+
+--get teachers by Id sp join with Users and department table
+CREATE PROCEDURE spGetTeacherById
+    @teacher_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        t.teacher_id,
+        t.teacher_code,
+        t.first_name,
+        t.last_name,
+        t.department_id,
+        d.name AS department_name,
+        t.contact,
+        t.hire_date,
+        t.photo,
+        u.Id AS user_id,
+        u.UserName,
+        u.Email,
+        u.PhoneNumber
+    FROM Teachers AS t
+    INNER JOIN AspNetUsers AS u ON t.user_id = u.Id
+    LEFT JOIN Departments AS d ON t.department_id = d.department_id
+    WHERE t.teacher_id = @teacher_id;
+END
+
+
+
+select * From AspNetUserRoles
+
+
+CREATE TABLE Students (
+    student_id INT IDENTITY(1,1) PRIMARY KEY,
+    user_id NVARCHAR(450) NULL,
+    student_number NVARCHAR(50) UNIQUE,
+    first_name NVARCHAR(100),
+    last_name NVARCHAR(100),
+    dob DATE,
+    gender CHAR(1) CHECK (gender IN ('M','F','O')),
+    photo NVARCHAR(255),
+    admission_year INT,
+    current_class_id INT NULL,
+    current_section_id INT NULL,
+    contact NVARCHAR(50),
+    address NVARCHAR(MAX),
+    CONSTRAINT FK_students_users FOREIGN KEY (user_id) REFERENCES AspNetUsers(Id),
+    CONSTRAINT FK_students_classes FOREIGN KEY (current_class_id) REFERENCES Classes(class_id),
+    CONSTRAINT FK_students_sections FOREIGN KEY (current_section_id) REFERENCES Sections(section_id)
+);
+Select * FROM AspNetUsers
+
+
+--Student SP
+--Add student
+CREATE PROCEDURE spAddStudent
+    @user_id NVARCHAR(450) = NULL,
+    @first_name NVARCHAR(100),
+    @last_name NVARCHAR(100),
+    @dob DATE,
+    @gender CHAR(1),
+    @photo NVARCHAR(255),
+    @admission_year INT,
+    @current_class_id INT = NULL,
+    @current_section_id INT = NULL,
+    @address NVARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @last_number NVARCHAR(50);
+    DECLARE @next_number NVARCHAR(50);
+    DECLARE @serial INT;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- ✅ Get last student_number for this admission year
+        SELECT TOP 1 @last_number = student_number
+        FROM Students
+        WHERE LEFT(student_number, 4) = CAST(@admission_year AS NVARCHAR(4))
+        ORDER BY student_number DESC;
+
+        -- ✅ Determine next serial number
+        IF @last_number IS NULL
+            SET @serial = 1;  -- first student of the year
+        ELSE
+            SET @serial = CAST(RIGHT(@last_number, 4) AS INT) + 1;
+
+        -- ✅ Build next student_number (e.g., 20250012)
+        SET @next_number = CONCAT(@admission_year, RIGHT('0000' + CAST(@serial AS NVARCHAR(4)), 4));
+
+        -- ✅ Insert new student
+        INSERT INTO Students (
+            user_id, student_number, first_name, last_name, dob, gender, photo,
+            admission_year, current_class_id, current_section_id, address
+        )
+        VALUES (
+            @user_id, @next_number, @first_name, @last_name, @dob, @gender, @photo,
+            @admission_year, @current_class_id, @current_section_id, @address
+        );
+
+        -- ✅ Update role if user exists
+        IF @user_id IS NOT NULL
+        BEGIN
+            UPDATE AspNetUserRoles
+            SET RoleId = 3  -- 3 = Student
+            WHERE UserId = @user_id;
+        END
+
+		--update the UserName
+		IF @user_id IS NOT NULL
+		BEGIN
+			UPDATE AspNetUsers
+			SET UserName = @next_number
+			WHERE Id = @user_id
+		END
+		
+        COMMIT TRANSACTION;
+
+        -- ✅ Return generated student_number
+        SELECT @next_number AS student_number;
+
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+
+select*FROM AspNetUsers
+--get all students informations including others tables
+CREATE PROCEDURE spGetAllStudents
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        s.student_id,
+        s.student_number,
+        s.first_name,
+        s.last_name,
+        s.dob,
+        s.gender,
+        s.photo,
+        s.admission_year,
+        s.address,
+		--class
+        c.class_id,
+        c.class_name,
+		--section
+        sec.section_id,
+        sec.section_name,
+        
+        u.Id AS user_id,
+        u.UserName,
+        u.Email,
+        u.PhoneNumber
+    FROM Students s
+    LEFT JOIN AspNetUsers u ON s.user_id = u.Id
+    LEFT JOIN Classes c ON s.current_class_id = c.class_id
+    LEFT JOIN Sections sec ON s.current_section_id = sec.section_id
+    ORDER BY s.admission_year DESC, s.student_number ASC;
+END
+spGetAllStudents
+spGetStudentById 1
+
+
+--get student by Id
+CREATE PROCEDURE spGetStudentById 
+    @student_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        s.student_id,
+        s.student_number,
+        s.first_name,
+        s.last_name,
+        s.dob,
+        s.gender,
+        s.photo,
+        s.admission_year,
+        s.address,
+		--class
+        c.class_id,
+        c.class_name,
+		--section
+        sec.section_id,
+        sec.section_name,
+        
+        u.Id AS user_id,
+        u.UserName,
+        u.Email,
+        u.PhoneNumber
+    FROM Students s
+    LEFT JOIN AspNetUsers u ON s.user_id = u.Id
+    LEFT JOIN Classes c ON s.current_class_id = c.class_id
+    LEFT JOIN Sections sec ON s.current_section_id = sec.section_id
+    WHERE s.student_id = @student_id;
+END
+
+
+
+CREATE TABLE ClassSubjects (
+    class_subject_id INT IDENTITY(1,1) PRIMARY KEY,
+    class_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    is_mandatory BIT DEFAULT 1,
+    CONSTRAINT UQ_Class_Subject UNIQUE (class_id, subject_id),
+    CONSTRAINT FK_class_subjects_classes FOREIGN KEY (class_id) REFERENCES Classes(class_id),
+    CONSTRAINT FK_class_subjects_subjects FOREIGN KEY (subject_id) REFERENCES Subjects(subject_id)
+);
+
+-- ====================================================
+-- ENROLLMENTS
+-- ====================================================
+CREATE TABLE Enrollments (
+    enrollment_id INT IDENTITY(1,1) PRIMARY KEY,
+    student_id INT NOT NULL,
+    year_id INT NOT NULL,
+    class_id INT NULL,
+    section_id INT NULL,
+    roll_no INT,
+    admission_date DATE,
+    status NVARCHAR(20),
+    CONSTRAINT UQ_Student_Year UNIQUE (student_id, year_id),
+    CONSTRAINT FK_enrollments_students FOREIGN KEY (student_id) REFERENCES Students(student_id),
+    CONSTRAINT FK_enrollments_years FOREIGN KEY (year_id) REFERENCES Academic_years(year_id),
+    CONSTRAINT FK_enrollments_classes FOREIGN KEY (class_id) REFERENCES Classes(class_id),
+    CONSTRAINT FK_enrollments_sections FOREIGN KEY (section_id) REFERENCES Sections(section_id)
+);
+
+--sp for enrollments
+select* from Enrollments
+select * from Academic_years
+select * from Sections
+--add enrollment sp
+
+CREATE PROCEDURE spAddEnrollment
+    @student_id INT,
+    @year_id INT,
+    @class_id INT = NULL,
+    @section_id INT = NULL,
+    @roll_no INT = NULL,
+    @admission_date DATE,
+    @status NVARCHAR(20)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- ❌ Already enrolled for same year
+        IF EXISTS (
+            SELECT 1 FROM Enrollments
+            WHERE student_id = @student_id AND year_id = @year_id
+        )
+        BEGIN
+            RAISERROR('Student is already enrolled for this academic year.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END;
+
+        -- ❌ Check Section Capacity
+        IF @section_id IS NOT NULL
+        BEGIN
+            DECLARE @capacity INT = (SELECT capacity FROM Sections WHERE section_id = @section_id);
+
+            DECLARE @currentCount INT = (
+                SELECT COUNT(*)
+                FROM Enrollments
+                WHERE section_id = @section_id AND year_id = @year_id
+            );
+
+            IF @currentCount >= @capacity
+            BEGIN
+                RAISERROR('This section is full. Enrollment not allowed.', 16, 1);
+                ROLLBACK TRANSACTION;
+                RETURN;
+            END;
+        END;
+
+        -- ✅ Insert Enrollment
+        INSERT INTO Enrollments (
+            student_id, year_id, class_id, section_id, admission_date, status
+        )
+        VALUES (
+            @student_id, @year_id, @class_id, @section_id, @admission_date, @status
+        );
+
+        DECLARE @enrollmentId INT = SCOPE_IDENTITY();
+
+        -- ✅ Update student's current class & section
+        UPDATE Students
+        SET current_class_id = @class_id,
+            current_section_id = @section_id
+        WHERE student_id = @student_id;
+
+        -- ============================================
+		-- ✅ Auto insert mandatory subjects (with department match)
+		-- ============================================
+		INSERT INTO StudentSubjects (enrollment_id, subject_id, is_mandatory)
+		SELECT 
+		    @enrollmentId, 
+		    cs.subject_id, 
+		    1
+		FROM ClassSubjects cs
+		JOIN Subjects s 
+		    ON cs.subject_id = s.subject_id
+		JOIN Sections sec
+		    ON sec.section_id = @section_id
+		WHERE 
+		    cs.class_id = @class_id
+		    AND cs.is_mandatory = 1
+		    AND s.department_id = sec.department_id; 
+
+        -- ============================================
+        -- ✅ Auto insert mandatory subjects for dept 5
+        -- (avoids duplicates)
+        -- ============================================
+        INSERT INTO StudentSubjects (enrollment_id, subject_id, is_mandatory)
+        SELECT @enrollmentId, cs.subject_id, 1
+        FROM ClassSubjects cs
+        JOIN Subjects s ON cs.subject_id = s.subject_id
+        WHERE cs.class_id = @class_id
+          AND cs.is_mandatory = 1
+          AND s.department_id = 5
+          AND NOT EXISTS (
+                SELECT 1 FROM StudentSubjects 
+                WHERE enrollment_id = @enrollmentId 
+                  AND subject_id = cs.subject_id
+        );
+
+        COMMIT TRANSACTION;
+
+        SELECT @enrollmentId AS enrollment_id;
+
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+
+
+select * from Subjects
+select * from ClassSubjects
+
+
+Select * from Students
+select * from Classes
+select * from Sections
+
+-- ====================================================
+-- STUDENT_SUBJECTS
+-- ====================================================
+CREATE TABLE StudentSubjects (
+    student_subject_id INT IDENTITY(1,1) PRIMARY KEY,
+    enrollment_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    is_optional BIT DEFAULT 0,
+    is_mandatory BIT DEFAULT 0,
+    CONSTRAINT UQ_Enrollment_Subject UNIQUE (enrollment_id, subject_id),
+    CONSTRAINT FK_student_subjects_enrollments FOREIGN KEY (enrollment_id) REFERENCES Enrollments(enrollment_id),
+    CONSTRAINT FK_student_subjects_subjects FOREIGN KEY (subject_id) REFERENCES Subjects(subject_id)
+);
+GO
+select * from ClassSubjects
+select * from Students
+select * from StudentSubjects
+select * from Enrollments
+
+-- ====================================================
+-- ATTENDANCE_SESSIONS
+-- ====================================================
+CREATE TABLE AttendanceSessions (
+    session_id INT IDENTITY(1,1) PRIMARY KEY,
+    year_id INT NOT NULL,
+    class_id INT NOT NULL,
+    section_id INT NULL,
+    subject_id INT NULL,
+    session_date DATE NOT NULL,
+    start_time TIME,
+    end_time TIME,
+    teacher_id INT NULL,
+    notes NVARCHAR(255),
+    CONSTRAINT FK_attendance_sessions_years FOREIGN KEY (year_id) REFERENCES Academic_years(year_id),
+    CONSTRAINT FK_attendance_sessions_classes FOREIGN KEY (class_id) REFERENCES Classes(class_id),
+    CONSTRAINT FK_attendance_sessions_sections FOREIGN KEY (section_id) REFERENCES Sections(section_id),
+    CONSTRAINT FK_attendance_sessions_subjects FOREIGN KEY (subject_id) REFERENCES Subjects(subject_id),
+    CONSTRAINT FK_attendance_sessions_teachers FOREIGN KEY (teacher_id) REFERENCES Teachers(teacher_id)
+);
+GO
+
+-- ====================================================
+-- ATTENDANCE_RECORDS
+-- ====================================================
+CREATE TABLE AttendanceRecords (
+    record_id INT IDENTITY(1,1) PRIMARY KEY,
+    session_id INT NOT NULL,
+    enrollment_id INT NOT NULL,
+    status NVARCHAR(10),
+    remarks NVARCHAR(255),
+    recorded_at DATETIME DEFAULT GETDATE(),
+    CONSTRAINT UQ_Session_Enrollment UNIQUE (session_id, enrollment_id),
+    CONSTRAINT FK_attendance_records_sessions FOREIGN KEY (session_id) REFERENCES AttendanceSessions(session_id),
+    CONSTRAINT FK_attendance_records_enrollments FOREIGN KEY (enrollment_id) REFERENCES Enrollments(enrollment_id)
+);
+GO
+
+-- ====================================================
+-- INDEXES
+-- ====================================================
+CREATE INDEX idx_student_number ON Students(student_number);
+CREATE INDEX idx_enrollment_year_class ON Enrollments(year_id, class_id);
+CREATE INDEX idx_attendance_date ON AttendanceSessions(session_date);
+GO
+
+
+-- upto this are created
+-- code for procedure
+--Departments start
+--get all departments
+CREATE PROCEDURE spGetDepartments
+AS
+BEGIN
+	SELECT * FROM Departments;
+END;
+
+--get Departments by department_id
+CREATE PROCEDURE spGetDepartmentById
+	@department_id INT
+AS
+BEGIN
+	SELECT * FROM Departments Where department_id = @department_id;
+END;
+
+Exec spGetDepartmentById @department_id = 2;
+
+--Add new Department
+CREATE PROCEDURE spAddDepartment
+	@name NVARCHAR(100),
+	@code NVARCHAR(20),
+	@description NVARCHAR(MAX)
+AS
+BEGIN
+	INSERT INTO Departments(name, code, description) VALUES(@name, @code, @description); 
+END
+
+EXEC spAddDepartment
+	@name = 'Computer Science and Engineering',
+    @code = 'CSE',
+    @description = 'The Computer Science department focuses on programming and systems.';
+
+
+--update department
+CREATE PROCEDURE spUpdateDepartment
+	@department_id INT,
+	@name NVARCHAR(100),
+	@code NVARCHAR(20),
+	@description NVARCHAR(MAX)
+AS
+BEGIN
+	UPDATE Departments set name = @name, code = @code, description = @description WHERE department_id = @department_id;
+END
+use School_SMS_DB
+Select*From Classes;
+
+--Departments END
+
+--Classes Start (Procedure)
+
+--Get all classes
+CREATE PROCEDURE spGetClasses
+AS
+BEGIN
+	SELECT * FROM Classes;
+END
+
+--get class by Id
+CREATE PROCEDURE spGetClassById
+	@class_id INT
+AS
+BEGIN
+	SELECT * FROM Classes WHERE class_id = @class_id;
+END
+
+--Update Class
+CREATE PROCEDURE spUpdateClass
+	@class_id INT,
+	@class_name NVARCHAR(20),
+	@is_secondary BIT,
+	@description NVARCHAR(255)
+AS
+BEGIN
+	UPDATE Classes SET class_name = @class_name, is_secondary = @is_secondary, description = @description WHERE class_id = @class_id;
+END;
+
+
+--Add Class
+CREATE PROCEDURE spAddClass
+	@class_name NVARCHAR(20),
+	@is_secondary BIT,
+	@description NVARCHAR(255)
+AS
+BEGIN
+	INSERT INTO Classes(class_name, is_secondary, description) VALUES(@class_name, @is_secondary, @description);
+END;
+
+--Classes Procedure end
+
+--Subject Procedure Start
+Select * From Subjects
+--create Subject
+CREATE PROCEDURE spAddSubject
+	
+	@subject_code NVARCHAR(30),
+	@name NVARCHAR(150),
+	@is_theory BIT,
+	@is_practical BIT,
+	@default_marks INT,
+	@department_id INT,
+	@credit_hours INT
+AS
+BEGIN
+	INSERT INTO Subjects(subject_code, name, is_theory, is_practical, default_marks, department_id, credit_hours)
+	VALUES(@subject_code, @name, @is_theory, @is_practical, @default_marks, @department_id, @credit_hours);
+END
+
+--get subject
+CREATE PROCEDURE spGetSubjects
+AS
+BEGIN
+	SELECT * FROM Subjects;
+END
+
+--get subject by ID
+CREATE PROCEDURE spGetSubjectById
+	@subject_id INT
+AS
+BEGIN
+	SELECT *FROM Subjects WHERE subject_id = @subject_id;
+END
+--END procedure of subject
+Select * from Subjects Where subject_id = 6
+
+--Procedure for ClassSubjects start 
+--first need to create a table that use as parameter
+--must need this way to create the table
+CREATE TYPE SubjectIdList AS TABLE (
+    subject_id INT
+);
+
+--Add many subject to 1 class
+CREATE PROCEDURE spAddClassSubjects
+	@class_id INT,
+	@subject_list SubjectIdList READONLY
+AS
+BEGIN
+	INSERT INTO ClassSubjects(class_id, subject_id, is_mandatory)
+	SELECT @class_id, s.subject_id, 1
+	FROM @subject_list s
+	WHERE NOT EXISTS(
+		SELECT 1 FROM ClassSubjects WHERE ClassSubjects.class_id = @class_id AND
+		ClassSubjects.subject_id = s.subject_id
+	)
+END
+
+Select * From SubjectIdList;
+EXEC sp_helptext 'spAddClassSubjects';
+
+
+select * From ClassSubjects
+Select * From Classes
+Select * From Subjects
+
+--Get class and its subjects 
+CREATE PROCEDURE spGetSubjectsByClassId 
+	@class_id INT
+AS
+BEGIN
+	SELECT 
+		c.class_id,
+		c.class_name,
+		c.description AS class_description,
+		s.subject_id,
+		s.subject_code,
+		s.name AS subject_name,
+		s.is_theory,
+		s.is_practical,
+		s.default_marks,
+		cs.is_mandatory,
+		s.department_id,
+		s.credit_hours
+	FROM Classes c
+	INNER JOIN ClassSubjects cs ON c.class_id = cs.class_id
+	INNER JOIN Subjects s ON cs.subject_id = s.subject_id
+	WHERE c.class_id = @class_id;
+END
+
+---End ClassSubjects procedure
+
+--start academic_years PRocedure
+CREATE PROCEDURE spAddAcademicYear
+	@year_label NVARCHAR(30),
+	@start_date Date,
+	@end_date Date,
+	@is_active BIT
+AS
+BEGIN
+	INSERT INTO Academic_years(year_label, start_date, end_date, is_active) 
+	Values(@year_label, @start_date, @end_date, @is_active);
+END
+select * from subjects
+
+Select * From Academic_years
+
+--Get all AcademicYears
+CREATE PROCEDURE spGetAcademicYears
+AS
+BEGIN
+	SELECT * FROM Academic_years
+END
+
+
+--ClassSlots
+CREATE TABLE ClassSlots (
+    slot_id INT IDENTITY(1,1) PRIMARY KEY,
+    slot_number INT NOT NULL,           -- 1st period, 2nd period, etc.
+    start_time VARCHAR(20) NOT NULL,    -- e.g., '10:00 AM'
+    end_time VARCHAR(20) NOT NULL       -- e.g., '10:45 AM'
+);
+
+Select * from ClassSlots
+
+--WeeklyDays Table
+CREATE TABLE WeeklyDays (
+    day_id INT IDENTITY(1,1) PRIMARY KEY,
+    day_name NVARCHAR(20) NOT NULL,
+    is_school_open BIT DEFAULT 1  -- 0 for Friday/Saturday
+);
+
+Select * from WeeklyDays
+

@@ -7,5 +7,6 @@ namespace StudentManagementSystem.Repositories.SectionsRepositories
     {
         Task<Response<object>> AddSectionAsync(CreateSectionDto createSectionDto);
         Task<Response<List<SectionsDto>>> GetSectionsAsync();
+        Task<Response<List<SectionsDto>>> GetSectionsByDepartmentIdAsync(int departmentId);
     }
 }

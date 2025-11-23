@@ -115,6 +115,8 @@ namespace StudentManagementSystem.Repositories.ClassesRepositories
                     Is_practical = reader.GetBoolean(7),
                     Default_marks = reader.GetInt32(8),
                     Is_mandatory = reader.GetBoolean(9),
+                    Department_id = reader.GetInt32(10),
+                    Credit_hours = reader.GetInt32(11),
                 });
             }
             return new Response<ClassSubjectsDetailsDto>(true, $"Subject list under {classSubjectDetails?.Class_name}", classSubjectDetails);
