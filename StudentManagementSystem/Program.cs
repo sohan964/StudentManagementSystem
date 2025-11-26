@@ -14,6 +14,8 @@ using StudentManagementSystem.Repositories.SectionsRepositories;
 using StudentManagementSystem.Repositories.TeachersRepositories;
 using StudentManagementSystem.Repositories.StudentsRepositories;
 using StudentManagementSystem.Repositories.EnrollmentsRepositories;
+using StudentManagementSystem.Repositories.ClassRoutineRepositories;
+using StudentManagementSystem.Repositories.AttendanceRepositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,7 +41,8 @@ builder.Services.AddTransient<ISectionsRepository, SectionsRepository>();
 builder.Services.AddTransient<ITeachersRepository, TeachersRepository>();
 builder.Services.AddTransient<IStudentsRepository, StudentsRepository>();
 builder.Services.AddTransient<IEnrollmentsRepository, EnrollmentsRepository>();
-
+builder.Services.AddTransient<IClassRoutineRepository, ClassRoutineRepository>();
+builder.Services.AddTransient<IAttendanceRepository, AttendanceRepository>();
 //jwt
 builder.Services.AddAuthentication(option =>
 {
