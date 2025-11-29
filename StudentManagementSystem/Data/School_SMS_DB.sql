@@ -571,43 +571,6 @@ select * from Students
 select * from StudentSubjects
 select * from Enrollments
 
--- ====================================================
--- ATTENDANCE_SESSIONS
--- ====================================================
-CREATE TABLE AttendanceSessions (
-    session_id INT IDENTITY(1,1) PRIMARY KEY,
-    year_id INT NOT NULL,
-    class_id INT NOT NULL,
-    section_id INT NULL,
-    subject_id INT NULL,
-    session_date DATE NOT NULL,
-    start_time TIME,
-    end_time TIME,
-    teacher_id INT NULL,
-    notes NVARCHAR(255),
-    CONSTRAINT FK_attendance_sessions_years FOREIGN KEY (year_id) REFERENCES Academic_years(year_id),
-    CONSTRAINT FK_attendance_sessions_classes FOREIGN KEY (class_id) REFERENCES Classes(class_id),
-    CONSTRAINT FK_attendance_sessions_sections FOREIGN KEY (section_id) REFERENCES Sections(section_id),
-    CONSTRAINT FK_attendance_sessions_subjects FOREIGN KEY (subject_id) REFERENCES Subjects(subject_id),
-    CONSTRAINT FK_attendance_sessions_teachers FOREIGN KEY (teacher_id) REFERENCES Teachers(teacher_id)
-);
-GO
-
--- ====================================================
--- ATTENDANCE_RECORDS
--- ====================================================
-CREATE TABLE AttendanceRecords (
-    record_id INT IDENTITY(1,1) PRIMARY KEY,
-    session_id INT NOT NULL,
-    enrollment_id INT NOT NULL,
-    status NVARCHAR(10),
-    remarks NVARCHAR(255),
-    recorded_at DATETIME DEFAULT GETDATE(),
-    CONSTRAINT UQ_Session_Enrollment UNIQUE (session_id, enrollment_id),
-    CONSTRAINT FK_attendance_records_sessions FOREIGN KEY (session_id) REFERENCES AttendanceSessions(session_id),
-    CONSTRAINT FK_attendance_records_enrollments FOREIGN KEY (enrollment_id) REFERENCES Enrollments(enrollment_id)
-);
-GO
 
 -- ====================================================
 -- INDEXES
@@ -842,4 +805,247 @@ CREATE TABLE WeeklyDays (
 );
 
 Select * from WeeklyDays
+select * from Academic_years
+--ClassRoutine table
+CREATE TABLE ClassRoutine (
+    routine_id INT IDENTITY(1,1) PRIMARY KEY,
 
+    year_id INT NOT NULL,   -- FK from Academic_years
+
+    class_id INT NOT NULL,
+    section_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    teacher_id INT NOT NULL,
+    day_id INT NOT NULL,
+    slot_id INT NOT NULL,
+
+    CONSTRAINT FK_routine_year FOREIGN KEY (year_id) REFERENCES Academic_years(year_id),
+    CONSTRAINT FK_routine_class FOREIGN KEY (class_id) REFERENCES Classes(class_id),
+    CONSTRAINT FK_routine_section FOREIGN KEY (section_id) REFERENCES Sections(section_id),
+    CONSTRAINT FK_routine_subject FOREIGN KEY (subject_id) REFERENCES Subjects(subject_id),
+    CONSTRAINT FK_routine_teacher FOREIGN KEY (teacher_id) REFERENCES Teachers(teacher_id),
+    CONSTRAINT FK_routine_day FOREIGN KEY (day_id) REFERENCES WeeklyDays(day_id),
+    CONSTRAINT FK_routine_slot FOREIGN KEY (slot_id) REFERENCES ClassSlots(slot_id),
+
+    -- Prevent duplicate slot assignment for the same class-section in same academic year
+    CONSTRAINT UQ_class_routine UNIQUE (year_id, class_id, section_id, day_id, slot_id)
+);
+
+select * From WeeklyDays
+select * From ClassSlots
+select * From ClassRoutine Where section_id =3
+select * From Subjects
+Select * From Teachers
+
+--sp of adding ClassRoutine of a subject one by one
+CREATE PROCEDURE spAddClassRoutine
+    @year_id INT,
+    @class_id INT,
+    @section_id INT,
+    @subject_id INT,
+    @teacher_id INT,
+    @day_id INT,
+    @slot_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    ---------------------------------------------
+    -- 1️⃣ Check: Teacher conflict
+    ---------------------------------------------
+    IF EXISTS (
+        SELECT 1 
+        FROM ClassRoutine
+        WHERE year_id = @year_id
+          AND teacher_id = @teacher_id
+          AND day_id = @day_id
+          AND slot_id = @slot_id
+    )
+    BEGIN
+        RAISERROR ('❌ Conflict: This teacher already has a class in this time slot.', 16, 1);
+        RETURN;
+    END;
+
+
+    ---------------------------------------------
+    -- 2️⃣ Check: Section conflict
+    ---------------------------------------------
+    IF EXISTS (
+        SELECT 1 
+        FROM ClassRoutine
+        WHERE year_id = @year_id
+          AND section_id = @section_id
+          AND day_id = @day_id
+          AND slot_id = @slot_id
+    )
+    BEGIN
+        RAISERROR ('❌ Conflict: This section already has a class in this time slot.', 16, 1);
+        RETURN;
+    END;
+
+
+    ---------------------------------------------
+    -- 3️⃣ Insert (No conflict)
+    ---------------------------------------------
+    INSERT INTO ClassRoutine
+    (year_id, class_id, section_id, subject_id, teacher_id, day_id, slot_id)
+    VALUES
+    (@year_id, @class_id, @section_id, @subject_id, @teacher_id, @day_id, @slot_id);
+
+    SELECT '✅ Class routine added successfully.' AS Message;
+END;
+GO
+
+CREATE PROCEDURE spGetRoutineByTeacher
+    @teacher_id INT,
+    @year_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        cr.routine_id,
+        wy.day_name,
+        cs.slot_number,
+        cs.start_time,
+        cs.end_time,
+        s.name AS subject_name,
+        c.class_name,
+        sec.section_name
+    FROM ClassRoutine cr
+    JOIN WeeklyDays wy ON cr.day_id = wy.day_id
+    JOIN ClassSlots cs ON cr.slot_id = cs.slot_id
+    JOIN Subjects s ON cr.subject_id = s.subject_id
+    JOIN Classes c ON cr.class_id = c.class_id
+    JOIN Sections sec ON cr.section_id = sec.section_id
+    WHERE cr.teacher_id = 1
+      AND cr.year_id = 1
+    ORDER BY wy.day_id, cs.slot_number;
+END;
+GO
+select * from Subjects
+
+
+
+
+-- ====================================================
+-- ATTENDANCE_SESSIONS
+-- ====================================================
+CREATE TABLE AttendanceSessions (
+    session_id INT IDENTITY(1,1) PRIMARY KEY,
+    routine_id INT NOT NULL,                 -- 🔥 From ClassRoutine
+    session_date DATE NOT NULL,              -- Teacher takes attendance on this date
+    created_at DATETIME DEFAULT GETDATE(),
+
+    -- Prevent duplicate attendance for same routine on same day
+    CONSTRAINT UQ_routine_session UNIQUE (routine_id, session_date),
+
+    CONSTRAINT FK_attendance_sessions_routine 
+        FOREIGN KEY (routine_id) REFERENCES ClassRoutine(routine_id)
+);
+GO
+
+
+-- ====================================================
+-- ATTENDANCE_RECORDS
+-- ====================================================
+CREATE TABLE AttendanceRecords (
+    record_id INT IDENTITY(1,1) PRIMARY KEY,
+    session_id INT NOT NULL,
+    enrollment_id INT NOT NULL,        -- identifies the student
+    status NVARCHAR(10) NOT NULL,      -- Present / Absent / Late
+    remarks NVARCHAR(255),
+
+    recorded_at DATETIME NOT NULL DEFAULT GETDATE(),   -- initial entry timestamp
+    updated_at DATETIME NULL,                          -- timestamp when updated later
+
+    -- Prevent duplicate attendance for one student in one session
+    CONSTRAINT UQ_session_student UNIQUE (session_id, enrollment_id),
+
+    CONSTRAINT FK_attendance_records_sessions 
+        FOREIGN KEY (session_id) REFERENCES AttendanceSessions(session_id),
+
+    CONSTRAINT FK_attendance_records_enrollments 
+        FOREIGN KEY (enrollment_id) REFERENCES Enrollments(enrollment_id)
+);
+GO
+
+--User define data table to handle the Attendance List
+CREATE TYPE AttendanceInput AS TABLE
+(
+    enrollment_id INT,
+    status NVARCHAR(10),
+    remarks NVARCHAR(255) NULL
+);
+GO
+
+-- Take attendace for section
+CREATE PROCEDURE spTakeAttendanceForSection
+(
+    @routine_id INT,
+    @session_date DATE,
+    @AttendanceList AttendanceInput READONLY
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @session_id INT;
+
+    -----------------------------------------------------
+    -- 1️⃣ Check if session already exists for today
+    -----------------------------------------------------
+    SELECT @session_id = session_id
+    FROM AttendanceSessions
+    WHERE routine_id = @routine_id
+      AND session_date = @session_date;
+
+    IF @session_id IS NOT NULL
+    BEGIN
+        -- 🔥 Return message and stop execution
+        SELECT 
+            'Attendance already taken for this routine on this date.' AS message,
+            @session_id AS session_id;
+
+        RETURN;
+    END
+
+
+    -----------------------------------------------------
+    -- 2️⃣ Create a new attendance session
+    -----------------------------------------------------
+    INSERT INTO AttendanceSessions (routine_id, session_date)
+    VALUES (@routine_id, @session_date);
+
+    SET @session_id = SCOPE_IDENTITY();
+
+
+    -----------------------------------------------------
+    -- 3️⃣ Insert records using MERGE
+    -----------------------------------------------------
+    MERGE AttendanceRecords AS Target
+    USING @AttendanceList AS Source
+        ON Target.session_id = @session_id
+       AND Target.enrollment_id = Source.enrollment_id
+    WHEN MATCHED THEN
+        UPDATE SET
+            status = Source.status,
+            remarks = Source.remarks,
+            updated_at = GETDATE()
+    WHEN NOT MATCHED THEN
+        INSERT (session_id, enrollment_id, status, remarks)
+        VALUES (@session_id, Source.enrollment_id, Source.status, Source.remarks);
+
+
+    -----------------------------------------------------
+    -- 4️⃣ Return success message
+    -----------------------------------------------------
+    SELECT 
+        'Attendance recorded successfully.' AS message,
+        @session_id AS session_id;
+
+END
+GO
+
+
+select * from Enrollments
