@@ -29,6 +29,12 @@ namespace StudentManagementSystem.Repositories.AuthRepositories
         //signup
         public async Task<Response<object>> SignUpAsync(SignUp signUp)
         {
+            var exUser = await _userManager.FindByEmailAsync(signUp.Email!);
+            if(exUser != null)
+            {
+                return new Response<object>(false, "this user already register");
+            }
+
             var newUser = new ApplicationUser()
             {
                 FullName = signUp.FullName,
