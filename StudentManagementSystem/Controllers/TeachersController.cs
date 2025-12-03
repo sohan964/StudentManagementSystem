@@ -16,7 +16,7 @@ namespace StudentManagementSystem.Controllers
             _teachersRepository = teachersRepository;
         }
 
-        [HttpPost("add")]
+        [HttpPost("add-teacher")]
         public async Task<IActionResult> AddTeacher([FromBody] CreateTeacherDto teacherDto)
         {
             var result = await _teachersRepository.AddTeacherAsync(teacherDto);

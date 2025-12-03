@@ -61,10 +61,10 @@ namespace StudentManagementSystem.Repositories.AuthRepositories
         public async Task<Response<object>> SignInAsync(SignIn signIn)
         {
             var user = await _userManager.FindByEmailAsync(signIn.Email!);
-            if(user == null)  return new Response<object> (false,"User not found", user);
+            if(user == null)  return new Response<object> (false,"User not found");
             if(!await _userManager.CheckPasswordAsync(user, signIn.Password!))
             {
-                return new Response<object>(false, "Wrong Password", user);
+                return new Response<object>(false, "Wrong Password", null);
             }
             var authClaims = new List<Claim>
             {
