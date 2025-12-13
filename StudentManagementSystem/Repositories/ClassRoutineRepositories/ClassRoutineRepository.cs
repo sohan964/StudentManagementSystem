@@ -61,6 +61,10 @@ namespace StudentManagementSystem.Repositories.ClassRoutineRepositories
                     Subject_name = reader.GetString(5),
                     Class_name = reader.GetString(6),
                     Section_name = reader.GetString(7),
+                    Year_id = reader.GetInt32(8),
+                    Class_id = reader.GetInt32(9),
+                    Section_id = reader.GetInt32(10),
+                    Subject_id = reader.GetInt32(11),
                 });
             }
             if (teacherRoutine.IsNullOrEmpty())

@@ -126,5 +126,39 @@ namespace StudentManagementSystem.Repositories.TeachersRepositories
             return new Response<TeacherInfoDto>(true, "the teacher", teacher);
         }
 
+        //get teacher by  user_id
+        public async Task<Response<TeacherInfoDto>> GetTeacherByUserIdAsync(string user_id)
+        {
+            using var connection = new SqlConnection(connectionString);
+            using var command = new SqlCommand("spGetTeacherByUserId", connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+            };
+            command.Parameters.AddWithValue("@user_id", user_id);
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+            var teacher = new TeacherInfoDto();
+            while (await reader.ReadAsync())
+            {
+                teacher = new TeacherInfoDto()
+                {
+                    Teacher_id = reader.GetInt32(0),
+                    Teacher_code = reader.GetString(1),
+                    First_name = reader.GetString(2),
+                    Last_name = reader.GetString(3),
+                    Department_id = reader.GetInt32(4),
+                    Department_name = reader.GetString(5),
+                    Contact = reader.GetString(6),
+                    Hire_date = DateOnly.FromDateTime(reader.GetDateTime(7)),
+                    Photo = reader.GetString(8),
+                    User_id = reader.GetString(9),
+                    UserName = reader.GetString(10),
+                    Email = reader.GetString(11),
+                    PhoneNumber = reader.IsDBNull(12) ? null : reader.GetString(12)
+                };
+            }
+            return new Response<TeacherInfoDto>(true, "the teacher", teacher);
+        }
+
     }
 }

@@ -37,9 +37,15 @@ namespace StudentManagementSystem.Controllers
         }
 
         [HttpGet("GetById/{teacher_id}")]
-        public async Task<IActionResult> GetTeacherById(int teacher_id)
+        public async Task<IActionResult> GetTeacherById([FromRoute]int teacher_id)
         {
             var result = await _teachersRepository.GetTeacherByIdAsync(teacher_id);
+            return Ok(result);
+        }
+        [HttpGet("GetByUserId/{user_id}")]
+        public async Task<IActionResult> GetTeacherByUserId( [FromRoute] string user_id)
+        {
+            var result = await _teachersRepository.GetTeacherByUserIdAsync(user_id);
             return Ok(result);
         }
     }

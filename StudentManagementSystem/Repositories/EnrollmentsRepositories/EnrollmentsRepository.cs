@@ -43,5 +43,38 @@ namespace StudentManagementSystem.Repositories.EnrollmentsRepositories
             }
 
         }
+
+        //get enrollments by year_id, class_id, section_id, status
+        public async Task<Response<List<EnrollmentsDto>>> GetEnrollmentsByParameterAsync(int? year_id, int? class_id, int? section_id, string? status)
+        {
+            using var connection = new SqlConnection(connectionString);
+            var command = new SqlCommand("spGetEnrollments", connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+            };
+            command.Parameters.AddWithValue("@year_id", year_id);
+            command.Parameters.AddWithValue("@class_id", class_id);
+            command.Parameters.AddWithValue("@section_id", section_id);
+            command.Parameters.AddWithValue("@status", status);
+
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+            var enrollList = new List<EnrollmentsDto>();
+            while(await reader.ReadAsync())
+            {
+                enrollList.Add(new EnrollmentsDto() 
+                { 
+                    Enrollment_id = reader.GetInt32(0),
+                    Student_id = reader.GetInt32(1),
+                    Student_name = reader.GetString(2) + " " + reader.GetString(3),
+                    Student_number = reader.GetString(4),
+                    Year_id = reader.GetInt32(5),
+                    Class_id = reader.GetInt32(6),
+                    Section_id = reader.GetInt32(7),
+                    Status = reader.GetString(8)
+                });
+            }
+            return new Response<List<EnrollmentsDto>>(true, "enrollments list of this section", enrollList);
+        }
     }
 }

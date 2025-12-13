@@ -9,5 +9,6 @@ namespace StudentManagementSystem.Repositories.TeachersRepositories
         Task<Response<List<TeachersDto>>> GetTeachersAsync();
         Task<Response<List<TeacherInfoDto>>> GetAllTeachersAsync();
         Task<Response<TeacherInfoDto>> GetTeacherByIdAsync(int teacher_id);
+        Task<Response<TeacherInfoDto>> GetTeacherByUserIdAsync(string user_id);
     }
 }

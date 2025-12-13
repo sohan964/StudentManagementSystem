@@ -22,5 +22,12 @@ namespace StudentManagementSystem.Controllers
             var result = await _enrollmentsRepository.AddEnrollmentAsync(addEnrollmentDto);
             return Ok(result);
         }
+
+        [HttpGet("get-enrollments")]
+        public async Task<IActionResult> GetEnrollmentsByParameters([FromQuery] int? year_id, [FromQuery] int? class_id, [FromQuery] int? section_id,[FromQuery] string? status)
+        {
+            var result = await _enrollmentsRepository.GetEnrollmentsByParameterAsync(year_id, class_id, section_id, status);
+            return Ok(result);
+        }
     }
 }
