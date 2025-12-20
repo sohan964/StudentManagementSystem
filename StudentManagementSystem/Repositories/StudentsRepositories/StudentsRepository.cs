@@ -67,6 +67,24 @@ namespace StudentManagementSystem.Repositories.StudentsRepositories
             return new Response<StudentInfoDto>(true, "the student info", studentInfo);
         }
 
+        public async Task<Response<StudentInfoDto>> GetStudentByUserIdAsync(string user_id)
+        {
+            using var connection = new SqlConnection(connectionString);
+            using var command = new SqlCommand("spGetStudentByUserId", connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+            };
+            command.Parameters.AddWithValue("@user_id", user_id);
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+            var studentInfo = new StudentInfoDto();
+            while (await reader.ReadAsync())
+            {
+                studentInfo = GetStudentInfo(reader); //calling the private method
+            }
+            return new Response<StudentInfoDto>(true, "the student info", studentInfo);
+        }
+
         private StudentInfoDto GetStudentInfo(SqlDataReader reader)
         {
             return new StudentInfoDto()
@@ -89,8 +107,12 @@ namespace StudentManagementSystem.Repositories.StudentsRepositories
                 User_id = reader.GetString(13),
                 UserName = reader.GetString(14),
                 Email = reader.GetString(15),
-                PhoneNumber = reader.IsDBNull(16) ? null : reader.GetString(16)
+                PhoneNumber = reader.IsDBNull(16) ? null : reader.GetString(16),
+                Current_enrollment_id = reader.IsDBNull(17) ? null : reader.GetInt32(17),
+                Current_year_id = reader.IsDBNull(18) ? null : reader.GetInt32(18),
             };
         }
+
+       
     }
 }

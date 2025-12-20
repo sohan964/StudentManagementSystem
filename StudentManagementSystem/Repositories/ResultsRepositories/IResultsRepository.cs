@@ -7,5 +7,6 @@ namespace StudentManagementSystem.Repositories.ResultsRepositories
     {
         Task<Response<object>> AddResultsAsync(AddResultDto addResult);
         Task<Response<StudentSubjectResultDto>> GetResultBySessionAndEnrollmentAsync(int? exam_session_id, int? enrollment_id);
+        Task<Response<OverAllResultDto>> GetFinalResultByEnrollmentAsync(int? enrollment_id);
     }
 }

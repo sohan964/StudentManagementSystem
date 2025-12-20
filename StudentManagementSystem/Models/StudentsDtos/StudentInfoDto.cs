@@ -24,6 +24,9 @@
         public string? UserName { get; set; }
         public string? Email { get; set; }
         public string? PhoneNumber {  get; set; }
+        public int? Current_enrollment_id { get; set; }
+        public int? Current_year_id { get; set; }
+
 
     }
 }

@@ -64,7 +64,7 @@ namespace StudentManagementSystem.Repositories.ClassRoutineRepositories
                     Year_id = reader.GetInt32(8),
                     Class_id = reader.GetInt32(9),
                     Section_id = reader.GetInt32(10),
-                    Subject_id = reader.GetInt32(11),
+                    Subject_id = reader.GetInt32(11)
                 });
             }
             if (teacherRoutine.IsNullOrEmpty())
@@ -72,9 +72,49 @@ namespace StudentManagementSystem.Repositories.ClassRoutineRepositories
                 return new Response<List<TeacherRoutineDto>>(false, "No class Routine found");
             }
             return new Response<List<TeacherRoutineDto>>(true, "Teacher Routine found", teacherRoutine);
-            
-
         }
+
+        public async Task<Response<List<TeacherRoutineDto>>> GetRoutineByClassSectionAsync(int Year_id, int Class_id, int Section_id)
+        {
+            using var connection = new SqlConnection(connectionString);
+            using var command = new SqlCommand("spGetRoutineByClassSection", connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+            };
+            
+            command.Parameters.AddWithValue("@year_id", Year_id);
+            command.Parameters.AddWithValue("@class_id", Class_id);
+            command.Parameters.AddWithValue("@section_id", Section_id);
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+            var teacherRoutine = new List<TeacherRoutineDto>();
+            while (await reader.ReadAsync())
+            {
+                teacherRoutine.Add(new TeacherRoutineDto
+                {
+                    Routine_id = reader.GetInt32(0),
+                    Day_name = reader.GetString(1),
+                    Slot_number = reader.GetInt32(2),
+                    Start_time = reader.GetString(3),
+                    End_time = reader.GetString(4),
+                    Subject_id = reader.GetInt32(5),
+                    Subject_name = reader.GetString(6),
+                    Class_id = reader.GetInt32(7),
+                    Class_name = reader.GetString(8),
+                    Section_id = reader.GetInt32(9),
+                    Section_name = reader.GetString(10),
+
+                    Year_id = reader.GetInt32(12)
+                    
+                });
+            }
+            if (teacherRoutine.IsNullOrEmpty())
+            {
+                return new Response<List<TeacherRoutineDto>>(false, "No class Routine found");
+            }
+            return new Response<List<TeacherRoutineDto>>(true, "Your Routine", teacherRoutine);
+        }
+
 
     }
 }

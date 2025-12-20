@@ -30,5 +30,12 @@ namespace StudentManagementSystem.Controllers
             if(!result.Success) return NotFound(result);
             return Ok(result);
         }
+
+        [HttpGet("get-final-result/{enrollment_id}")]
+        public async Task<IActionResult> GetFinalResultByEnrollment([FromRoute]int? enrollment_id)
+        {
+            var result = await _resultsRepository.GetFinalResultByEnrollmentAsync(enrollment_id);
+            return Ok(result);
+        }
     }
 }

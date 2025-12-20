@@ -31,5 +31,13 @@ namespace StudentManagementSystem.Controllers
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
+
+        [HttpGet("class-routine")]
+        public async Task<IActionResult> GetRoutineByClassSection([FromQuery] int Year_id, [FromQuery] int Class_id, [FromQuery] int Section_id)
+        {
+            var result = await _classRoutineRepository.GetRoutineByClassSectionAsync(Year_id, Class_id, Section_id);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
     }
 }

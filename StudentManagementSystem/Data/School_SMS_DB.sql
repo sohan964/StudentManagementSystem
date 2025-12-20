@@ -223,6 +223,31 @@ BEGIN
     WHERE t.teacher_id = @teacher_id;
 END
 
+CREATE PROCEDURE spGetTeacherByUserId
+    @user_id VARCHAR(225)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        t.teacher_id,
+        t.teacher_code,
+        t.first_name,
+        t.last_name,
+        t.department_id,
+        d.name AS department_name,
+        t.contact,
+        t.hire_date,
+        t.photo,
+        u.Id AS user_id,
+        u.UserName,
+        u.Email,
+        u.PhoneNumber
+    FROM Teachers AS t
+    INNER JOIN AspNetUsers AS u ON t.user_id = u.Id
+    LEFT JOIN Departments AS d ON t.department_id = d.department_id
+    WHERE t.user_id = @user_id;
+END
 
 
 select * From AspNetUserRoles
@@ -246,6 +271,8 @@ CREATE TABLE Students (
     CONSTRAINT FK_students_classes FOREIGN KEY (current_class_id) REFERENCES Classes(class_id),
     CONSTRAINT FK_students_sections FOREIGN KEY (current_section_id) REFERENCES Sections(section_id)
 );
+
+
 Select * FROM AspNetUsers
 
 
@@ -399,6 +426,100 @@ BEGIN
     WHERE s.student_id = @student_id;
 END
 
+CREATE drop PROCEDURE  spGetStudentByUserId
+    @user_id VARCHAR(100)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        s.student_id,
+        s.student_number,
+        s.first_name,
+        s.last_name,
+        s.dob,
+        s.gender,
+        s.photo,
+        s.admission_year,
+        s.address,
+		--class
+        c.class_id,
+        c.class_name,
+		--section
+        sec.section_id,
+        sec.section_name,
+        
+        u.Id AS user_id,
+        u.UserName,
+        u.Email,
+        u.PhoneNumber
+    FROM Students s
+    LEFT JOIN AspNetUsers u ON s.user_id = u.Id
+    LEFT JOIN Classes c ON s.current_class_id = c.class_id
+    LEFT JOIN Sections sec ON s.current_section_id = sec.section_id
+    WHERE s.user_id = @user_id;
+END
+select * from AspNetUsers
+--updated later
+CREATE PROCEDURE spGetStudentByUserId '9ecbb0f2-0914-4ab8-8d47-5e20b168d8f7'
+    @user_id VARCHAR(100)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        -- Student
+        s.student_id,
+        s.student_number,
+        s.first_name,
+        s.last_name,
+        s.dob,
+        s.gender,
+        s.photo,
+        s.admission_year,
+        s.address,
+
+        -- Class (current)
+        c.class_id,
+        c.class_name,
+
+        -- Section (current)
+        sec.section_id,
+        sec.section_name,
+
+        -- User
+        u.Id AS user_id,
+        u.UserName,
+        u.Email,
+        u.PhoneNumber,
+
+        -- ✅ Enrollment info (ADDED AT END)
+        e.enrollment_id,
+        e.year_id,
+        ay.year_label
+
+    FROM Students s
+    LEFT JOIN AspNetUsers u 
+        ON s.user_id = u.Id
+
+    -- 🔥 Current enrollment (active academic year)
+    LEFT JOIN Enrollments e 
+        ON e.student_id = s.student_id
+
+    LEFT JOIN Academic_years ay 
+        ON e.year_id = ay.year_id
+       AND ay.is_active = 1
+
+    LEFT JOIN Classes c 
+        ON s.current_class_id = c.class_id
+
+    LEFT JOIN Sections sec 
+        ON s.current_section_id = sec.section_id
+
+    WHERE s.user_id = @user_id
+      AND ay.is_active = 1;
+END;
+GO
 
 
 CREATE TABLE ClassSubjects (
@@ -434,8 +555,39 @@ CREATE TABLE Enrollments (
 select* from Enrollments
 select * from Academic_years
 select * from Sections
---add enrollment sp
 
+--get Enrollments by year_id, class_id, Section_id
+CREATE PROCEDURE spGetEnrollments
+    @year_id INT = NULL,
+    @class_id INT = NULL,
+    @section_id INT = NULL,
+	@status NVARCHAR(20) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        e.enrollment_id,
+        e.student_id,
+        s.first_name,
+        s.last_name,
+        s.student_number,
+        e.year_id,
+        e.class_id,
+        e.section_id,
+        e.status
+    FROM Enrollments e
+    INNER JOIN Students s ON e.student_id = s.student_id
+    WHERE 
+        (@year_id IS NULL OR e.year_id = @year_id)
+        AND (@class_id IS NULL OR e.class_id = @class_id)
+        AND (@section_id IS NULL OR e.section_id = @section_id)
+        AND (@status IS NULL OR e.status = @status);
+END
+GO
+
+
+--add enrollment sp
 CREATE PROCEDURE spAddEnrollment
     @student_id INT,
     @year_id INT,
@@ -795,6 +947,11 @@ CREATE TABLE ClassSlots (
     end_time VARCHAR(20) NOT NULL       -- e.g., '10:45 AM'
 );
 
+CREATE PROCEDURE spGetClassSlots
+AS
+BEGIN
+	SELECT * FROM ClassSlots;
+END
 Select * from ClassSlots
 
 --WeeklyDays Table
@@ -803,6 +960,16 @@ CREATE TABLE WeeklyDays (
     day_name NVARCHAR(20) NOT NULL,
     is_school_open BIT DEFAULT 1  -- 0 for Friday/Saturday
 );
+
+CREATE PROCEDURE spGetDays
+AS
+BEGIN
+	SELECT * FROM WeeklyDays;
+END
+
+Select * from AttendanceRecords
+Select * from AttendanceSessions
+select * from ClassRoutine
 
 Select * from WeeklyDays
 select * from Academic_years
@@ -896,7 +1063,7 @@ BEGIN
 END;
 GO
 
-CREATE PROCEDURE spGetRoutineByTeacher
+CREATE  PROCEDURE spGetRoutineByTeacher
     @teacher_id INT,
     @year_id INT
 AS
@@ -911,19 +1078,62 @@ BEGIN
         cs.end_time,
         s.name AS subject_name,
         c.class_name,
-        sec.section_name
+        sec.section_name,
+		cr.year_id,
+		cr.class_id,
+		cr.section_id,
+		s.subject_id
+
     FROM ClassRoutine cr
     JOIN WeeklyDays wy ON cr.day_id = wy.day_id
     JOIN ClassSlots cs ON cr.slot_id = cs.slot_id
     JOIN Subjects s ON cr.subject_id = s.subject_id
     JOIN Classes c ON cr.class_id = c.class_id
     JOIN Sections sec ON cr.section_id = sec.section_id
-    WHERE cr.teacher_id = 1
-      AND cr.year_id = 1
+    WHERE cr.teacher_id = @teacher_id
+      AND cr.year_id = @year_id
     ORDER BY wy.day_id, cs.slot_number;
 END;
 GO
-select * from Subjects
+
+CREATE PROCEDURE spGetRoutineByClassSection
+    @year_id INT,
+    @class_id INT,
+    @section_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT 
+        cr.routine_id,
+        wy.day_name,
+        cs.slot_number,
+        cs.start_time,
+        cs.end_time,
+        s.subject_id,
+        s.name AS subject_name,
+        c.class_id,
+        c.class_name,
+        sec.section_id,
+        sec.section_name,
+        cr.teacher_id,
+        cr.year_id
+    FROM ClassRoutine cr
+    JOIN WeeklyDays wy ON cr.day_id = wy.day_id
+    JOIN ClassSlots cs ON cr.slot_id = cs.slot_id
+    JOIN Subjects s ON cr.subject_id = s.subject_id
+    JOIN Classes c ON cr.class_id = c.class_id
+    JOIN Sections sec ON cr.section_id = sec.section_id
+    WHERE cr.year_id = @year_id
+      AND cr.class_id = @class_id
+      AND cr.section_id = @section_id
+    ORDER BY wy.day_id, cs.slot_number;
+END;
+GO
+
+
+
+select * from AttendanceRecords
+select * from AttendanceSessions
 
 
 
@@ -970,6 +1180,8 @@ CREATE TABLE AttendanceRecords (
 );
 GO
 
+
+
 --User define data table to handle the Attendance List
 CREATE TYPE AttendanceInput AS TABLE
 (
@@ -978,7 +1190,6 @@ CREATE TYPE AttendanceInput AS TABLE
     remarks NVARCHAR(255) NULL
 );
 GO
-
 -- Take attendace for section
 CREATE PROCEDURE spTakeAttendanceForSection
 (
@@ -1046,6 +1257,1052 @@ BEGIN
 
 END
 GO
+--get attendance summary of a section and subject
+CREATE PROCEDURE spGetAttendanceSummary 1, 11, 3, 9
+    @year_id INT,
+    @class_id INT,
+    @section_id INT,
+    @subject_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        e.enrollment_id,
+        s.student_id,
+        s.student_number,
+        e.year_id,
+        e.class_id,
+        e.section_id,
+        @subject_id AS subject_id,
+
+        s.first_name,
+        s.last_name,
+
+        -- Total Classes (all AttendanceRecords)
+        COUNT(ar.record_id) AS total_classes,
+
+        -- Present = Present + Late
+        SUM(CASE WHEN ar.status IN ('Present', 'Late') THEN 1 ELSE 0 END) AS total_present,
+
+        -- Absent only
+        SUM(CASE WHEN ar.status = 'Absent' THEN 1 ELSE 0 END) AS total_absent,
+
+        -- Attendance Percentage
+        CASE 
+            WHEN COUNT(ar.record_id) = 0 THEN 0
+            ELSE (
+                SUM(CASE WHEN ar.status IN ('Present', 'Late') THEN 1 ELSE 0 END) * 100.0 
+                / COUNT(ar.record_id)
+            )
+        END AS attendance_percentage
+
+    FROM Enrollments e
+    JOIN Students s 
+        ON e.student_id = s.student_id
+
+    JOIN ClassRoutine cr
+        ON cr.year_id = e.year_id
+       AND cr.class_id = e.class_id
+       AND cr.section_id = e.section_id
+       AND cr.subject_id = @subject_id
+
+    LEFT JOIN AttendanceSessions ats
+        ON ats.routine_id = cr.routine_id
+
+    LEFT JOIN AttendanceRecords ar
+        ON ar.session_id = ats.session_id
+       AND ar.enrollment_id = e.enrollment_id
+
+    WHERE 
+        e.year_id = @year_id
+        AND e.class_id = @class_id
+        AND e.section_id = @section_id
+
+    GROUP BY 
+        e.enrollment_id,
+        s.student_id,
+        s.student_number,
+        e.year_id,
+        e.class_id,
+        e.section_id,
+        s.first_name,
+        s.last_name
+
+    ORDER BY 
+        s.student_number;
+END;
+GO
+
+--get student a subject attendance
+CREATE PROCEDURE spGetStudentAttendanceDetails 7, 1, 9
+    @enrollment_id INT,
+    @year_id INT,
+    @subject_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Attendance Details
+    SELECT
+        ar.record_id,
+        ats.session_id,
+        ats.session_date,
+        ar.status,
+        ar.remarks,
+        ar.recorded_at,
+        ar.updated_at,
+
+        cr.subject_id,
+        cr.class_id,
+        cr.section_id,
+        cr.teacher_id,
+
+        s.student_id,
+        s.student_number,
+        s.first_name,
+        s.last_name
+
+    FROM AttendanceRecords ar
+    JOIN AttendanceSessions ats
+        ON ar.session_id = ats.session_id
+
+    JOIN ClassRoutine cr
+        ON cr.routine_id = ats.routine_id
+        AND cr.subject_id = @subject_id
+        AND cr.year_id = @year_id
+
+    JOIN Enrollments e
+        ON ar.enrollment_id = e.enrollment_id
+        AND e.enrollment_id = @enrollment_id
+
+    JOIN Students s
+        ON e.student_id = s.student_id
+
+    ORDER BY ats.session_date ASC;
+END;
+GO
 
 
-select * from Enrollments
+select * from AttendanceRecords
+select * from AttendanceSessions
+
+CREATE PROCEDURE spUpdateAttendanceRecord 
+    @record_id INT,
+    @status NVARCHAR(10),
+    @updated_at DATETIME
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Check if record exists
+    IF NOT EXISTS (SELECT 1 FROM AttendanceRecords WHERE record_id = @record_id)
+    BEGIN
+        SELECT 'Record not found' AS Message, 0 AS Success;
+        RETURN;
+    END
+
+    -- Update the record
+    UPDATE AttendanceRecords
+    SET 
+        status = @status,
+      
+        updated_at = @updated_at
+    WHERE record_id = @record_id;
+
+    SELECT 'Attendance updated successfully' AS Message, 1 AS Success;
+END;
+GO
+
+
+--ALL about result module
+
+
+CREATE TABLE Grades (
+    grade_id INT IDENTITY(1,1) PRIMARY KEY,
+    grade_name NVARCHAR(5) NOT NULL,        -- A+, A, B-, etc.
+    min_mark INT NOT NULL,                 -- Minimum mark range
+    max_mark INT NOT NULL,                 -- Maximum mark range
+    grade_point DECIMAL(3,2) NULL          -- Optional (can be NULL)
+);
+
+INSERT INTO Grades (grade_name, min_mark, max_mark, grade_point)
+VALUES
+('A+', 80, 100, 5.00),
+('A', 75, 79, 4.50),
+('A-', 70, 74, 4.00),
+('B+', 65, 69, 3.50),
+('B', 60, 64, 3.25),
+('B-', 55, 59, 3.00),
+('C+', 50, 54, 2.75),
+('C', 45, 49, 2.50),
+('D', 40, 44, 2.00),
+('F', 0, 39, 0.00);
+select * from Grades Where 50 between min_mark AND max_mark
+
+CREATE TABLE ExamTypes (
+    exam_type_id INT IDENTITY(1,1) PRIMARY KEY,
+    type_name NVARCHAR(50) NOT NULL,     -- Mid Term, Final, Assignment, etc
+    weight_percentage DECIMAL(5,2) NOT NULL -- e.g., 30.00, 45.00, 10.00
+);
+
+INSERT INTO ExamTypes (type_name, weight_percentage)
+VALUES
+('Mid Term', 30.00),
+('Final Exam', 45.00),
+('Assignment', 10.00),
+('Quiz', 10.00),
+('Attendance', 5.00);
+select * from ExamTypes
+
+CREATE PROCEDURE spGetExamTypes
+AS
+BEGIN
+	SELECT * FROM ExamTypes;
+END
+
+--ExamSlots
+CREATE TABLE ExamSlots (
+    exam_slot_id INT IDENTITY(1,1) PRIMARY KEY,
+    exam_slot_name NVARCHAR(50) NOT NULL,       -- Morning, Afternoon, etc.
+    exam_start_time VARCHAR(10) NOT NULL,
+    exam_end_time VARCHAR(10) NOT NULL,
+
+    CONSTRAINT UQ_exam_slot UNIQUE (exam_start_time, exam_end_time)
+);
+
+INSERT INTO ExamSlots (exam_slot_name, exam_start_time, exam_end_time)
+VALUES
+('Morning', '10:00 AM', '01:00 PM'),
+('Afternoon', '02:00 PM', '05:00 PM');
+select * from ExamSlots
+
+CREATE PROCEDURE spGetExamSlots
+AS
+BEGIN
+	SELECT * FROM ExamSlots
+END
+
+
+CREATE TABLE ExamSessions (
+    exam_session_id INT IDENTITY(1,1) PRIMARY KEY,
+    year_id INT NOT NULL,                -- academic year
+    exam_type_id INT NOT NULL,           -- Mid Term, Final, Assignment
+    subject_id INT NOT NULL,
+    class_id INT NOT NULL,
+    section_id INT NOT NULL,
+    exam_date DATE,
+    max_marks DECIMAL(5,2) NOT NULL,     -- 100, 50, etc
+    CONSTRAINT FK_exam_year FOREIGN KEY (year_id) REFERENCES Academic_years(year_id),
+    CONSTRAINT FK_exam_type FOREIGN KEY (exam_type_id) REFERENCES ExamTypes(exam_type_id),
+    CONSTRAINT FK_exam_subject FOREIGN KEY (subject_id) REFERENCES Subjects(subject_id)
+);
+
+ALTER TABLE ExamSessions
+ADD exam_slot_id INT NOT NULL;
+
+ALTER TABLE ExamSessions
+ADD CONSTRAINT FK_exam_slot
+FOREIGN KEY (exam_slot_id) REFERENCES ExamSlots(exam_slot_id);
+
+CREATE OR ALTER PROCEDURE spGetExamSessions
+(
+    @exam_session_id INT = NULL,
+    @year_id INT = NULL,
+    @exam_type_id INT = NULL,
+    @subject_id INT = NULL,
+    @class_id INT = NULL,
+    @section_id INT = NULL
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        es.exam_session_id,
+        es.year_id,
+        es.exam_type_id,
+        et.type_name AS exam_type_name,
+        es.subject_id,
+        s.name AS subject_name,
+        es.class_id,
+        es.section_id,
+        es.exam_date,
+        es.max_marks,
+		es.exam_slot_id
+
+    FROM ExamSessions es
+    INNER JOIN ExamTypes et ON es.exam_type_id = et.exam_type_id
+    INNER JOIN Subjects s ON es.subject_id = s.subject_id
+    WHERE 
+        (@exam_session_id IS NULL OR es.exam_session_id = @exam_session_id)
+        AND (@year_id IS NULL OR es.year_id = @year_id)
+        AND (@exam_type_id IS NULL OR es.exam_type_id = @exam_type_id)
+        AND (@subject_id IS NULL OR es.subject_id = @subject_id)
+        AND (@class_id IS NULL OR es.class_id = @class_id)
+        AND (@section_id IS NULL OR es.section_id = @section_id)
+    ORDER BY es.exam_session_id DESC;
+END;
+GO
+
+
+select * from classes
+select * from Sections
+select * from Subjects
+
+select * from ExamSessions
+
+--SP to add Exam Session
+CREATE PROCEDURE spAddExamSession
+    @year_id INT,
+    @exam_type_id INT,
+    @subject_id INT,
+    @class_id INT,
+    @section_id INT,
+    @exam_date DATE,
+    @exam_slot_id INT,
+    @max_marks DECIMAL(5,2)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    --------------------------------------------------------
+    -- 1. Check: Same exam for same year/class/subject exists
+    --------------------------------------------------------
+    IF EXISTS (
+        SELECT 1
+        FROM ExamSessions
+        WHERE year_id = @year_id
+          AND exam_type_id = @exam_type_id
+          AND subject_id = @subject_id
+          AND class_id = @class_id
+          AND section_id = @section_id
+    )
+    BEGIN
+        SELECT 
+            0 AS success,
+            'This exam session already exists for this subject & exam type.' AS message;
+        RETURN;
+    END
+
+
+    --------------------------------------------------------
+    -- 2. Check Time Slot Overlap for same date same class-section
+    --------------------------------------------------------
+    DECLARE @new_start TIME, @new_end TIME;
+
+    SELECT 
+        @new_start = CONVERT(TIME, exam_start_time),
+        @new_end   = CONVERT(TIME, exam_end_time)
+    FROM ExamSlots
+    WHERE exam_slot_id = @exam_slot_id;
+
+
+    IF EXISTS (
+        SELECT 1
+        FROM ExamSessions es
+        JOIN ExamSlots s ON es.exam_slot_id = s.exam_slot_id
+        WHERE es.exam_date = @exam_date
+          AND es.class_id = @class_id
+          AND es.section_id = @section_id
+          AND (
+                CONVERT(TIME, s.exam_start_time) < @new_end AND
+                @new_start < CONVERT(TIME, s.exam_end_time)
+              )
+    )
+    BEGIN
+        SELECT 
+            0 AS success,
+            'Another exam is already scheduled for this class/section at this time.' AS message;
+        RETURN;
+    END
+
+
+    --------------------------------------------------------
+    -- 3. Insert Exam Session
+    --------------------------------------------------------
+    INSERT INTO ExamSessions
+        (year_id, exam_type_id, subject_id, class_id, section_id, exam_date, exam_slot_id, max_marks)
+    VALUES
+        (@year_id, @exam_type_id, @subject_id, @class_id, @section_id, @exam_date, @exam_slot_id, @max_marks);
+
+
+    SELECT 
+        1 AS success,
+        'Exam session added successfully.' AS message,
+        SCOPE_IDENTITY() AS exam_session_id;
+END;
+GO
+
+--get exam session by year_id, class_id, Section_id, subject_id
+
+
+
+
+CREATE TABLE ExamResults (
+    result_id INT IDENTITY(1,1) PRIMARY KEY,
+    exam_session_id INT NOT NULL,
+    enrollment_id INT NOT NULL,          -- student
+    obtained_marks DECIMAL(5,2) NOT NULL,
+    created_at DATETIME DEFAULT GETDATE(),
+    updated_at DATETIME NULL,
+
+    CONSTRAINT FK_result_session FOREIGN KEY (exam_session_id) REFERENCES ExamSessions(exam_session_id),
+    CONSTRAINT FK_result_enrollment FOREIGN KEY (enrollment_id) REFERENCES Enrollments(enrollment_id),
+
+    CONSTRAINT UQ_exam_student UNIQUE (exam_session_id, enrollment_id)
+);
+
+select * from ExamResults
+CREATE PROCEDURE spGetExamResult
+    @exam_session_id INT,
+    @enrollment_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        result_id,
+        exam_session_id,
+        enrollment_id,
+        obtained_marks,
+        created_at,
+        updated_at
+    FROM ExamResults
+    WHERE exam_session_id = @exam_session_id
+      AND enrollment_id = @enrollment_id;
+END;
+
+select * from AspNetUsers
+
+CREATE PROCEDURE spAddExamResult
+(
+    @exam_session_id INT,
+    @enrollment_id INT,
+    @obtained_marks DECIMAL(5,2)
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Check if result already exists for this student in this exam session
+    IF EXISTS (
+        SELECT 1 FROM ExamResults
+        WHERE exam_session_id = @exam_session_id
+          AND enrollment_id = @enrollment_id
+    )
+    BEGIN
+        SELECT 
+            'conflict' AS status,
+            'Result already exists for this student in this exam session.' AS message;
+        RETURN;
+    END
+
+    -- Insert new exam result
+    INSERT INTO ExamResults
+    (
+        exam_session_id,
+        enrollment_id,
+        obtained_marks
+    )
+    VALUES
+    (
+        @exam_session_id,
+        @enrollment_id,
+        @obtained_marks
+    );
+
+    SELECT 
+        'success' AS status,
+        'Exam result added successfully.' AS message,
+        SCOPE_IDENTITY() AS result_id;
+END;
+
+select * from Students
+GO
+select * from Departments
+--*** updatedone
+CREATE drop PROCEDURE spGetStudentOverallResults 7
+    @enrollment_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @year_id INT;
+    DECLARE @class_id INT;
+    DECLARE @section_id INT;
+    DECLARE @student_id INT;
+    DECLARE @has_exam_sessions BIT = 0;
+    DECLARE @has_results BIT = 0;
+    DECLARE @all_results_published BIT = 0;
+    
+    -- Get enrollment details
+    SELECT
+        @year_id = year_id,
+        @class_id = class_id,
+        @section_id = section_id,
+        @student_id = student_id
+    FROM Enrollments
+    WHERE enrollment_id = @enrollment_id;
+    
+    -- Check if any exam sessions exist for this enrollment
+    IF EXISTS (
+        SELECT 1 FROM ExamSessions es
+        JOIN StudentSubjects ss ON es.subject_id = ss.subject_id
+        WHERE ss.enrollment_id = @enrollment_id
+          AND es.year_id = @year_id
+          AND es.class_id = @class_id
+          AND (@section_id IS NULL OR es.section_id = @section_id)
+    )
+    BEGIN
+        SET @has_exam_sessions = 1;
+    END
+    
+    -- Check if any exam results exist for this enrollment
+    IF EXISTS (
+        SELECT 1 FROM ExamResults er
+        JOIN ExamSessions es ON er.exam_session_id = es.exam_session_id
+        WHERE er.enrollment_id = @enrollment_id
+    )
+    BEGIN
+        SET @has_results = 1;
+    END
+    
+    -- Check if all exam sessions have results (results are published)
+    DECLARE @total_sessions INT = 0;
+    DECLARE @total_results INT = 0;
+    
+    SELECT @total_sessions = COUNT(DISTINCT es.exam_session_id)
+    FROM ExamSessions es
+    JOIN StudentSubjects ss ON es.subject_id = ss.subject_id
+    WHERE ss.enrollment_id = @enrollment_id
+      AND es.year_id = @year_id
+      AND es.class_id = @class_id
+      AND (@section_id IS NULL OR es.section_id = @section_id)
+      
+    
+    SELECT @total_results = COUNT(DISTINCT er.exam_session_id)
+    FROM ExamResults er
+    JOIN ExamSessions es ON er.exam_session_id = es.exam_session_id
+    WHERE er.enrollment_id = @enrollment_id
+      
+    
+    IF @total_sessions > 0 AND @total_sessions = @total_results
+    BEGIN
+        SET @all_results_published = 1;
+    END
+    
+    -- If no exam sessions exist, exam not taken yet
+    IF @has_exam_sessions = 0
+    BEGIN
+        SELECT 'The exam is not taken yet' AS message;
+        RETURN;
+    END
+    
+    -- If exam sessions exist but no results, result not submitted yet
+    IF @has_exam_sessions = 1 AND @has_results = 0
+    BEGIN
+        SELECT 'The result is not submitted yet' AS message;
+        RETURN;
+    END
+    
+    -- If some but not all results are published
+    IF @has_exam_sessions = 1 AND @has_results = 1 AND @all_results_published = 0
+    BEGIN
+        SELECT 'The result is not published yet' AS message;
+        RETURN;
+    END
+    
+    -- Create temporary table to store subject results
+    CREATE TABLE #SubjectResults (
+        subject_id INT,
+        subject_name NVARCHAR(150),
+        subject_code NVARCHAR(30),
+        credit_hours INT,
+        total_marks DECIMAL(5,2),
+        max_marks DECIMAL(5,2),
+        percentage DECIMAL(5,2)
+    );
+    
+    -- Calculate subject-wise results (excluding attendance for now)
+    INSERT INTO #SubjectResults
+    SELECT
+        s.subject_id,
+        s.name AS subject_name,
+        s.subject_code,
+        s.credit_hours,
+        SUM(ISNULL(er.obtained_marks, 0) * et.weight_percentage / 100.0) AS total_marks,
+        SUM(es.max_marks * et.weight_percentage / 100.0) AS max_marks,
+        CASE
+            WHEN SUM(es.max_marks * et.weight_percentage / 100.0) > 0 THEN
+                SUM(ISNULL(er.obtained_marks, 0) * et.weight_percentage / 100.0) * 100.0 /
+                SUM(es.max_marks * et.weight_percentage / 100.0)
+            ELSE 0
+        END AS percentage
+    FROM Subjects s
+    JOIN StudentSubjects ss ON s.subject_id = ss.subject_id
+    JOIN ExamSessions es ON s.subject_id = es.subject_id AND es.year_id = @year_id
+                        AND es.class_id = @class_id AND es.section_id = @section_id
+    JOIN ExamTypes et ON es.exam_type_id = et.exam_type_id
+    LEFT JOIN ExamResults er ON es.exam_session_id = er.exam_session_id AND er.enrollment_id = @enrollment_id
+    WHERE ss.enrollment_id = @enrollment_id
+      AND et.type_name != 'Attendance'  -- Exclude attendance type for now
+    GROUP BY s.subject_id, s.name, s.subject_code, s.credit_hours;
+    
+    -- Add attendance marks for each subject (calculated from attendance tables)
+    UPDATE sr
+    SET sr.total_marks = sr.total_marks + ISNULL(att.attendance_marks, 0),
+        sr.max_marks = sr.max_marks + ISNULL(att.max_marks, 0),  -- Add attendance max marks
+        sr.percentage = CASE
+            WHEN sr.max_marks + ISNULL(att.max_marks, 0) > 0 THEN
+                (sr.total_marks + ISNULL(att.attendance_marks, 0)) * 100.0 / (sr.max_marks + ISNULL(att.max_marks, 0))
+            ELSE 0
+        END
+    FROM #SubjectResults sr
+    LEFT JOIN (
+        -- Calculate attendance marks and max marks from attendance tables
+        SELECT
+            cr.subject_id,
+            -- Calculate attendance percentage from actual attendance records
+            (ISNULL((
+                SELECT SUM(CASE WHEN ar.status IN ('Present', 'Late') THEN 1 ELSE 0 END) * 100.0 /
+                       NULLIF(COUNT(ar.record_id), 0)
+                FROM AttendanceRecords ar
+                JOIN AttendanceSessions ats ON ar.session_id = ats.session_id
+                JOIN ClassRoutine cr_inner ON ats.routine_id = cr_inner.routine_id
+                WHERE cr_inner.subject_id = cr.subject_id
+                  AND cr_inner.year_id = @year_id
+                  AND cr_inner.class_id = @class_id
+                  AND cr_inner.section_id = @section_id
+                  AND ar.enrollment_id = @enrollment_id
+            ), 0) * 5.0 / 100.0) AS attendance_marks,  -- 5% of attendance percentage
+            -- Calculate max marks for attendance (5% of 100 = 5 marks)
+            5.0 AS max_marks
+        FROM ClassRoutine cr
+        WHERE cr.year_id = @year_id
+          AND cr.class_id = @class_id
+          AND cr.section_id = @section_id
+        GROUP BY cr.subject_id
+    ) att ON sr.subject_id = att.subject_id;
+    
+    -- Return subject-wise results with grades from Grades table
+    SELECT
+        sr.subject_id,
+        sr.subject_name,
+        sr.subject_code,
+        sr.credit_hours,
+        sr.total_marks,
+        sr.max_marks,
+        sr.percentage,
+        g.grade_name,
+        g.grade_point,
+        sr.credit_hours * g.grade_point AS weighted_grade_point
+    FROM #SubjectResults sr
+    JOIN Grades g ON sr.percentage BETWEEN g.min_mark AND g.max_mark
+    ORDER BY sr.subject_name;
+    
+    -- Calculate and return overall GPA
+    DECLARE @total_credit_hours INT = 0;
+    DECLARE @total_weighted_grade_points DECIMAL(5,2) = 0;
+    DECLARE @overall_gpa DECIMAL(3,2) = 0;
+    
+    SELECT
+        @total_credit_hours = SUM(credit_hours * g.grade_point),
+        @total_weighted_grade_points = SUM(credit_hours * g.grade_point)
+    FROM #SubjectResults sr
+    JOIN Grades g ON sr.percentage BETWEEN g.min_mark AND g.max_mark;
+    
+    IF @total_credit_hours > 0
+    BEGIN
+        SET @overall_gpa = @total_weighted_grade_points / @total_credit_hours;
+    END
+    
+    -- Return overall GPA with grade from Grades table
+    SELECT
+        @enrollment_id AS enrollment_id,
+        s.student_number,
+        s.first_name,
+        s.last_name,
+        c.class_name,
+        sec.section_name,
+        ay.year_label,
+        @total_credit_hours AS total_credit_hours,
+        @total_weighted_grade_points AS total_weighted_grade_points,
+        @overall_gpa AS overall_gpa,
+        g.grade_name AS overall_grade
+    FROM Students s
+    JOIN Enrollments e ON s.student_id = e.student_id
+    JOIN Classes c ON e.class_id = c.class_id
+    JOIN Sections sec ON e.section_id = sec.section_id
+    JOIN Academic_years ay ON e.year_id = ay.year_id
+    JOIN Grades g ON @overall_gpa * 20 BETWEEN g.min_mark AND g.max_mark  -- Convert GPA to percentage scale
+    WHERE e.enrollment_id = @enrollment_id;
+    
+    -- Clean up
+    DROP TABLE #SubjectResults;
+END
+GO
+
+---******
+CREATE PROCEDURE spGetStudentOverallResult 7
+    @enrollment_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @year_id INT;
+    DECLARE @class_id INT;
+    DECLARE @section_id INT;
+    DECLARE @student_id INT;
+    DECLARE @has_results BIT = 0;
+    
+    -- Get enrollment details
+    SELECT
+        @year_id = year_id,
+        @class_id = class_id,
+        @section_id = section_id,
+        @student_id = student_id
+    FROM Enrollments
+    WHERE enrollment_id = @enrollment_id;
+    
+    -- Check if any exam results exist for this enrollment
+    IF EXISTS (
+        SELECT 1 FROM ExamResults er
+        JOIN ExamSessions es ON er.exam_session_id = es.exam_session_id
+        WHERE er.enrollment_id = @enrollment_id
+    )
+    BEGIN
+        SET @has_results = 1;
+    END
+    
+    -- If no results found, return message
+    IF @has_results = 0
+    BEGIN
+        SELECT 'The result is not published yet' AS message;
+        RETURN;
+    END
+    
+    -- Create temporary table to store subject results
+    CREATE TABLE #SubjectResults (
+        subject_id INT,
+        subject_name NVARCHAR(150),
+        subject_code NVARCHAR(30),
+        credit_hours INT,
+        total_marks DECIMAL(5,2),
+        max_marks DECIMAL(5,2),
+        percentage DECIMAL(5,2)
+    );
+    
+    -- Calculate subject-wise results (excluding attendance for now)
+    INSERT INTO #SubjectResults
+    SELECT
+        s.subject_id,
+        s.name AS subject_name,
+        s.subject_code,
+        s.credit_hours,
+        SUM(ISNULL(er.obtained_marks, 0) * et.weight_percentage / 100.0) AS total_marks,
+        SUM(es.max_marks * et.weight_percentage / 100.0) AS max_marks,
+        CASE
+            WHEN SUM(es.max_marks * et.weight_percentage / 100.0) > 0 THEN
+                SUM(ISNULL(er.obtained_marks, 0) * et.weight_percentage / 100.0) * 100.0 /
+                SUM(es.max_marks * et.weight_percentage / 100.0)
+            ELSE 0
+        END AS percentage
+    FROM Subjects s
+    JOIN StudentSubjects ss ON s.subject_id = ss.subject_id
+    JOIN ExamSessions es ON s.subject_id = es.subject_id AND es.year_id = @year_id
+                        AND es.class_id = @class_id AND es.section_id = @section_id
+    JOIN ExamTypes et ON es.exam_type_id = et.exam_type_id
+    LEFT JOIN ExamResults er ON es.exam_session_id = er.exam_session_id AND er.enrollment_id = @enrollment_id
+    WHERE ss.enrollment_id = @enrollment_id
+      AND et.type_name != 'Attendance'  -- Exclude attendance type for now
+    GROUP BY s.subject_id, s.name, s.subject_code, s.credit_hours;
+    
+    -- Add attendance marks for each subject
+    UPDATE sr
+    SET sr.total_marks = sr.total_marks + ISNULL(att.attendance_marks, 0),
+        sr.max_marks = sr.max_marks + 5.0,  -- 5 marks for attendance
+        sr.percentage = CASE
+            WHEN sr.max_marks + 5.0 > 0 THEN
+                (sr.total_marks + ISNULL(att.attendance_marks, 0)) * 100.0 / (sr.max_marks + 5.0)
+            ELSE 0
+        END
+    FROM #SubjectResults sr
+    LEFT JOIN (
+        SELECT
+            cr.subject_id,
+            (ISNULL((
+                SELECT SUM(CASE WHEN ar.status IN ('Present', 'Late') THEN 1 ELSE 0 END) * 100.0 /
+                       NULLIF(COUNT(ar.record_id), 0)
+                FROM AttendanceRecords ar
+                JOIN AttendanceSessions ats ON ar.session_id = ats.session_id
+                JOIN ClassRoutine cr_inner ON ats.routine_id = cr_inner.routine_id
+                WHERE cr_inner.subject_id = cr.subject_id
+                  AND cr_inner.year_id = @year_id
+                  AND cr_inner.class_id = @class_id
+                  AND cr_inner.section_id = @section_id
+                  AND ar.enrollment_id = @enrollment_id
+            ), 0) * 5.0 / 100.0) AS attendance_marks  -- 5% of 100 = 5 marks
+        FROM ClassRoutine cr
+        WHERE cr.year_id = @year_id
+          AND cr.class_id = @class_id
+          AND cr.section_id = @section_id
+        GROUP BY cr.subject_id
+    ) att ON sr.subject_id = att.subject_id;
+    
+    -- Return subject-wise results with grades from Grades table
+    SELECT
+        sr.subject_id,
+        sr.subject_name,
+        sr.subject_code,
+        sr.credit_hours,
+        sr.total_marks,
+        sr.max_marks,
+        sr.percentage,
+        g.grade_name,
+        g.grade_point,
+        sr.credit_hours * g.grade_point AS weighted_grade_point
+    FROM #SubjectResults sr
+    JOIN Grades g ON sr.percentage BETWEEN g.min_mark AND g.max_mark
+    ORDER BY sr.subject_name;
+    
+    -- Calculate and return overall GPA
+    DECLARE @total_credit_hours INT = 0;
+    DECLARE @total_weighted_grade_points DECIMAL(5,2) = 0;
+    DECLARE @overall_gpa DECIMAL(3,2) = 0;
+    
+    SELECT
+        @total_credit_hours = SUM(credit_hours * g.grade_point),
+        @total_weighted_grade_points = SUM(credit_hours * g.grade_point)
+    FROM #SubjectResults sr
+    JOIN Grades g ON sr.percentage BETWEEN g.min_mark AND g.max_mark;
+    
+    IF @total_credit_hours > 0
+    BEGIN
+        SET @overall_gpa = @total_weighted_grade_points / @total_credit_hours;
+    END
+    
+    -- Return overall GPA with grade from Grades table
+    SELECT
+        @enrollment_id AS enrollment_id,
+        s.student_number,
+        s.first_name,
+        s.last_name,
+        c.class_name,
+        sec.section_name,
+        ay.year_label,
+        @total_credit_hours AS total_credit_hours,
+        @total_weighted_grade_points AS total_weighted_grade_points,
+        @overall_gpa AS overall_gpa,
+        g.grade_name AS overall_grade
+    FROM Students s
+    JOIN Enrollments e ON s.student_id = e.student_id
+    JOIN Classes c ON e.class_id = c.class_id
+    JOIN Sections sec ON e.section_id = sec.section_id
+    JOIN Academic_years ay ON e.year_id = ay.year_id
+    JOIN Grades g ON @overall_gpa * 20 BETWEEN g.min_mark AND g.max_mark  -- Convert GPA to percentage scale
+    WHERE e.enrollment_id = @enrollment_id;
+    
+    -- Clean up
+    DROP TABLE #SubjectResults;
+END
+GO
+
+
+---update from chatgpt
+CREATE PROCEDURE spGetStudentOverallResults 7
+    @enrollment_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    ----------------------------------------------------
+    -- 1️⃣ Get enrollment basic info
+    ----------------------------------------------------
+    DECLARE @year_id INT;
+    DECLARE @class_id INT;
+    DECLARE @section_id INT;
+
+    SELECT
+        @year_id = year_id,
+        @class_id = class_id,
+        @section_id = section_id
+    FROM Enrollments
+    WHERE enrollment_id = @enrollment_id;
+
+
+    ----------------------------------------------------
+    -- 2️⃣ Temp table for subject-wise result
+    ----------------------------------------------------
+    CREATE TABLE #SubjectResults (
+        subject_id INT,
+        subject_name NVARCHAR(150),
+        subject_code NVARCHAR(30),
+        credit_hours INT,
+        total_marks DECIMAL(6,2),
+        max_marks DECIMAL(6,2),
+        percentage DECIMAL(6,2)
+    );
+
+
+    ----------------------------------------------------
+    -- 3️⃣ Insert SUBJECT results (missing = 0)
+    ----------------------------------------------------
+    INSERT INTO #SubjectResults
+    SELECT
+        s.subject_id,
+        s.name,
+        s.subject_code,
+        s.credit_hours,
+
+        -- obtained marks
+        SUM(
+            ISNULL(er.obtained_marks, 0) 
+            * ISNULL(et.weight_percentage, 0) / 100.0
+        ) AS total_marks,
+
+        -- max marks
+        SUM(
+            ISNULL(es.max_marks, 0) 
+            * ISNULL(et.weight_percentage, 0) / 100.0
+        ) AS max_marks,
+
+        -- percentage
+        CASE 
+            WHEN SUM(ISNULL(es.max_marks, 0) * ISNULL(et.weight_percentage, 0) / 100.0) > 0
+            THEN
+                SUM(ISNULL(er.obtained_marks, 0) * ISNULL(et.weight_percentage, 0) / 100.0)
+                * 100.0 /
+                SUM(ISNULL(es.max_marks, 0) * ISNULL(et.weight_percentage, 0) / 100.0)
+            ELSE 0
+        END AS percentage
+
+    FROM StudentSubjects ss
+    JOIN Subjects s 
+        ON ss.subject_id = s.subject_id
+
+    LEFT JOIN ExamSessions es
+        ON es.subject_id = s.subject_id
+       AND es.year_id = @year_id
+       AND es.class_id = @class_id
+       AND es.section_id = @section_id
+
+    LEFT JOIN ExamTypes et
+        ON es.exam_type_id = et.exam_type_id
+       AND et.type_name <> 'Attendance'
+
+    LEFT JOIN ExamResults er
+        ON er.exam_session_id = es.exam_session_id
+       AND er.enrollment_id = @enrollment_id
+
+    WHERE ss.enrollment_id = @enrollment_id
+    GROUP BY
+        s.subject_id,
+        s.name,
+        s.subject_code,
+        s.credit_hours;
+
+
+    ----------------------------------------------------
+    -- 4️⃣ Add Attendance marks (5%)
+    ----------------------------------------------------
+    UPDATE sr
+    SET
+        sr.total_marks = sr.total_marks + ISNULL(att.attendance_marks, 0),
+        sr.max_marks   = sr.max_marks + 5,
+        sr.percentage  =
+            CASE
+                WHEN (sr.max_marks + 5) > 0
+                THEN (sr.total_marks + ISNULL(att.attendance_marks, 0)) * 100.0 / (sr.max_marks + 5)
+                ELSE 0
+            END
+    FROM #SubjectResults sr
+    LEFT JOIN (
+        SELECT
+            cr.subject_id,
+            (
+                COUNT(CASE WHEN ar.status IN ('Present','Late') THEN 1 END)
+                * 100.0 /
+                NULLIF(COUNT(ar.record_id), 0)
+            ) * 5 / 100.0 AS attendance_marks
+        FROM AttendanceRecords ar
+        JOIN AttendanceSessions ats ON ar.session_id = ats.session_id
+        JOIN ClassRoutine cr ON ats.routine_id = cr.routine_id
+        WHERE ar.enrollment_id = @enrollment_id
+          AND cr.year_id = @year_id
+          AND cr.class_id = @class_id
+          AND cr.section_id = @section_id
+        GROUP BY cr.subject_id
+    ) att ON sr.subject_id = att.subject_id;
+
+
+    ----------------------------------------------------
+    -- 5️⃣ Subject-wise result with Grade
+    ----------------------------------------------------
+    SELECT
+        sr.subject_id,
+        sr.subject_name,
+        sr.subject_code,
+        sr.credit_hours,
+        sr.total_marks,
+        sr.max_marks,
+        sr.percentage,
+        g.grade_name,
+        g.grade_point,
+        sr.credit_hours * g.grade_point AS weighted_grade_point
+    FROM #SubjectResults sr
+    JOIN Grades g
+        ON sr.percentage BETWEEN g.min_mark AND g.max_mark
+    ORDER BY sr.subject_name;
+
+
+    ----------------------------------------------------
+    -- 6️⃣ GPA Calculation
+    ----------------------------------------------------
+    DECLARE @total_credit_hours INT = 0;
+    DECLARE @total_weighted_points DECIMAL(6,2) = 0;
+    DECLARE @gpa DECIMAL(4,2) = 0;
+
+    SELECT
+        @total_credit_hours = SUM(sr.credit_hours),
+        @total_weighted_points = SUM(sr.credit_hours * g.grade_point)
+    FROM #SubjectResults sr
+    JOIN Grades g
+        ON sr.percentage BETWEEN g.min_mark AND g.max_mark;
+
+    IF @total_credit_hours > 0
+        SET @gpa = @total_weighted_points / @total_credit_hours;
+
+
+    ----------------------------------------------------
+    -- 7️⃣ Final Overall Result
+    ----------------------------------------------------
+    SELECT
+        e.enrollment_id,
+        st.student_number,
+        st.first_name,
+        st.last_name,
+        c.class_name,
+        sec.section_name,
+        ay.year_label,
+        @total_credit_hours AS total_credit_hours,
+        @total_weighted_points AS total_weighted_grade_points,
+        @gpa AS gpa,
+        g.grade_name AS overall_grade
+    FROM Enrollments e
+    JOIN Students st ON e.student_id = st.student_id
+    JOIN Classes c ON e.class_id = c.class_id
+    JOIN Sections sec ON e.section_id = sec.section_id
+    JOIN Academic_years ay ON e.year_id = ay.year_id
+    JOIN Grades g ON (@gpa * 20) BETWEEN g.min_mark AND g.max_mark
+    WHERE e.enrollment_id = @enrollment_id;
+
+
+    ----------------------------------------------------
+    -- 8️⃣ Cleanup
+    ----------------------------------------------------
+    DROP TABLE #SubjectResults;
+END;
+GO
+
+

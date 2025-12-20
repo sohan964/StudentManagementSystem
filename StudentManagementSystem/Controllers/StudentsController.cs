@@ -40,6 +40,13 @@ namespace StudentManagementSystem.Controllers
             return Ok(result);
         }
 
+        [HttpGet("GetByUserId/{user_id}")]
+        public async Task<IActionResult> GetStudentByUserId([FromRoute] string user_id)
+        {
+            var result = await _studentsRepository.GetStudentByUserIdAsync(user_id);
+            return Ok(result);
+        }
+
 
     }
 }
