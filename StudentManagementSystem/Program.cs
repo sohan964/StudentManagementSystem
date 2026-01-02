@@ -19,6 +19,8 @@ using StudentManagementSystem.Repositories.AttendanceRepositories;
 using StudentManagementSystem.Repositories.WeeklyDaysRepositories;
 using StudentManagementSystem.Repositories.ExamRepositories;
 using StudentManagementSystem.Repositories.ResultsRepositories;
+using StudentManagementSystem.Repositories.GradeRepositories;
+using StudentManagementSystem.Repositories.NoticeRepositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,6 +51,8 @@ builder.Services.AddTransient<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddTransient<IWeeklyDaysRepository, WeeklyDaysRepository>();
 builder.Services.AddTransient<IExamRepository, ExamRepository>();
 builder.Services.AddTransient<IResultsRepository, ResultsRepository>();
+builder.Services.AddScoped<IGradesRepository, GradesRepository>();
+builder.Services.AddScoped<INoticeRepository, NoticeRepository>();
 //jwt
 builder.Services.AddAuthentication(option =>
 {

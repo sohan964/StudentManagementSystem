@@ -44,7 +44,30 @@ namespace StudentManagementSystem.Repositories.StudentsRepositories
             var studentInfoList = new List<StudentInfoDto>();
             while(await reader.ReadAsync())
             {
-                studentInfoList.Add( GetStudentInfo(reader) );  //calling the private method to avoid code duplecation
+                studentInfoList.Add(new StudentInfoDto()
+                {
+                    Student_id = reader.GetInt32(0),
+                    Student_number = reader.GetString(1),
+                    First_name = reader.GetString(2),
+                    Last_name = reader.GetString(3),
+                    DOB = DateOnly.FromDateTime(reader.GetDateTime(4)),
+                    Gender = reader.GetString(5),
+                    Photo = reader.GetString(6),
+                    Admission_year = reader.GetInt32(7),
+                    Address = reader.GetString(8),
+                    Class_id = reader.IsDBNull(9) ? null : reader.GetInt32(9),
+                    Class_name = reader.IsDBNull(10) ? null : reader.GetString(10),
+                    Section_id = reader.IsDBNull(11) ? null : reader.GetInt32(11),
+                    Section_name = reader.IsDBNull(12) ? null : reader.GetString(12),
+
+                    //users table
+                    User_id = reader.GetString(13),
+                    UserName = reader.GetString(14),
+                    Email = reader.GetString(15),
+                    PhoneNumber = reader.IsDBNull(16) ? null : reader.GetString(16),
+                    //Current_enrollment_id = reader.IsDBNull(17) ? null : reader.GetInt32(17),
+                    //Current_year_id = reader.IsDBNull(18) ? null : reader.GetInt32(18),
+                } );  //calling the private method to avoid code duplecation
             }
             return new Response<List<StudentInfoDto>>(true, "all students", studentInfoList);
         }

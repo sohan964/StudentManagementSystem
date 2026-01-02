@@ -1429,16 +1429,20 @@ CREATE TABLE Grades (
 INSERT INTO Grades (grade_name, min_mark, max_mark, grade_point)
 VALUES
 ('A+', 80, 100, 5.00),
-('A', 75, 79, 4.50),
-('A-', 70, 74, 4.00),
-('B+', 65, 69, 3.50),
-('B', 60, 64, 3.25),
-('B-', 55, 59, 3.00),
-('C+', 50, 54, 2.75),
-('C', 45, 49, 2.50),
-('D', 40, 44, 2.00),
-('F', 0, 39, 0.00);
-select * from Grades Where 50 between min_mark AND max_mark
+('A', 70, 79, 4.00),
+('A-', 60, 69, 3.50),
+('B', 50, 59, 3.00),
+('C', 40, 49, 2.00),
+('D', 33, 39, 1.00),
+('F', 0, 32, 0.00);
+
+select * from Grades
+
+CREATE PROCEDURE spGetGradeList
+AS
+BEGIN
+	SELECT * FROM Grades;
+END;
 
 CREATE TABLE ExamTypes (
     exam_type_id INT IDENTITY(1,1) PRIMARY KEY,
@@ -1452,7 +1456,7 @@ VALUES
 ('Final Exam', 45.00),
 ('Assignment', 10.00),
 ('Quiz', 10.00),
-('Attendance', 5.00);
+('Grooming', 5.00);
 select * from ExamTypes
 
 CREATE PROCEDURE spGetExamTypes
@@ -1504,7 +1508,7 @@ ADD exam_slot_id INT NOT NULL;
 ALTER TABLE ExamSessions
 ADD CONSTRAINT FK_exam_slot
 FOREIGN KEY (exam_slot_id) REFERENCES ExamSlots(exam_slot_id);
-
+Select * from ExamSessions
 CREATE OR ALTER PROCEDURE spGetExamSessions
 (
     @exam_session_id INT = NULL,
@@ -2305,4 +2309,431 @@ BEGIN
 END;
 GO
 
+select * from Subjects
 
+---this one is created
+spGetSubjectResultByEnrollment 7, 9
+select * from ExamSessions
+select * from ExamResults
+select * from ExamTypes
+select * from Students
+select * from Subjects
+CREATE PROCEDURE spGetSubjectResultByEnrollment
+    @enrollment_id INT,
+    @subject_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @year_id INT;
+    DECLARE @class_id INT;
+    DECLARE @section_id INT;
+
+    -- Get enrollment context
+    SELECT
+        @year_id = year_id,
+        @class_id = class_id,
+        @section_id = section_id
+    FROM Enrollments
+    WHERE enrollment_id = @enrollment_id;
+
+    SELECT
+        s.subject_id,
+        s.name AS subject_name,
+
+        et.exam_type_id,
+        et.type_name,
+
+        -- Weighted marks (NULL if result missing)
+        CASE 
+            WHEN er.obtained_marks IS NULL THEN NULL
+            ELSE (er.obtained_marks * et.weight_percentage) / 100.0
+        END AS marks,
+
+        et.weight_percentage
+
+    FROM ExamTypes et
+
+    -- Always return the subject
+    CROSS JOIN Subjects s
+
+    -- Match exam session (if exists)
+    LEFT JOIN ExamSessions es
+        ON es.exam_type_id = et.exam_type_id
+        AND es.subject_id = s.subject_id
+        AND es.year_id = @year_id
+        AND es.class_id = @class_id
+        AND es.section_id = @section_id
+
+    -- Match student result (if exists)
+    LEFT JOIN ExamResults er
+        ON er.exam_session_id = es.exam_session_id
+        AND er.enrollment_id = @enrollment_id
+
+    WHERE s.subject_id = @subject_id
+
+    ORDER BY et.exam_type_id;
+END;
+GO
+
+
+
+---this one is created
+spGetFinalSubjectResultsByEnrollment 7
+
+CREATE PROCEDURE spGetFinalSubjectResultsByEnrollment
+    @enrollment_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @year_id INT;
+    DECLARE @class_id INT;
+    DECLARE @section_id INT;
+
+    -- Get enrollment context
+    SELECT
+        @year_id = year_id,
+        @class_id = class_id,
+        @section_id = section_id
+    FROM Enrollments
+    WHERE enrollment_id = @enrollment_id;
+
+    ;WITH SubjectMarks AS
+    (
+        SELECT
+            ss.subject_id,
+            sub.name AS subject_name,
+
+            -- Weighted marks, NULL treated as 0
+            SUM(
+                ISNULL(er.obtained_marks, 0)
+                * et.weight_percentage / 100.0
+            ) AS total_marks
+
+        FROM StudentSubjects ss
+        JOIN Subjects sub 
+            ON ss.subject_id = sub.subject_id
+
+        JOIN ExamSessions es
+            ON es.subject_id = ss.subject_id
+            AND es.year_id = @year_id
+            AND es.class_id = @class_id
+            AND es.section_id = @section_id
+
+        JOIN ExamTypes et
+            ON es.exam_type_id = et.exam_type_id
+
+        LEFT JOIN ExamResults er
+            ON er.exam_session_id = es.exam_session_id
+            AND er.enrollment_id = @enrollment_id
+
+        WHERE ss.enrollment_id = @enrollment_id
+        GROUP BY ss.subject_id, sub.name
+    )
+
+    SELECT
+        sm.subject_id,
+        sm.subject_name,
+        CAST(sm.total_marks AS DECIMAL(5,2)) AS total_marks,
+        g.grade_name AS grade
+    FROM SubjectMarks sm
+    JOIN Grades g
+        ON sm.total_marks BETWEEN g.min_mark AND g.max_mark
+    ORDER BY sm.subject_name;
+END;
+GO
+
+--this one is also created
+spGetStudentSubjectTotals 7
+select * from subjects
+
+CREATE PROCEDURE spGetStudentSubjectTotals
+    @enrollment_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @year_id INT;
+    DECLARE @class_id INT;
+    DECLARE @section_id INT;
+
+    -- Get enrollment context
+    SELECT
+        @year_id = year_id,
+        @class_id = class_id,
+        @section_id = section_id
+    FROM Enrollments
+    WHERE enrollment_id = @enrollment_id;
+
+    ;WITH SubjectMarks AS
+    (
+        SELECT
+            ss.subject_id,
+            sub.name AS subject_name,
+
+            -- NULL result → 0
+            ISNULL(
+                (er.obtained_marks * et.weight_percentage) / 100.0,
+                0
+            ) AS weighted_marks
+
+        FROM StudentSubjects ss
+        JOIN Subjects sub 
+            ON ss.subject_id = sub.subject_id
+
+        LEFT JOIN ExamSessions es
+            ON es.subject_id = ss.subject_id
+            AND es.year_id = @year_id
+            AND es.class_id = @class_id
+            AND es.section_id = @section_id
+
+        LEFT JOIN ExamTypes et
+            ON es.exam_type_id = et.exam_type_id
+
+        LEFT JOIN ExamResults er
+            ON er.exam_session_id = es.exam_session_id
+            AND er.enrollment_id = @enrollment_id
+
+        WHERE ss.enrollment_id = @enrollment_id
+    ),
+    SubjectTotals AS
+    (
+        SELECT
+            subject_id,
+            subject_name,
+            SUM(weighted_marks) AS total_marks
+        FROM SubjectMarks
+        GROUP BY subject_id, subject_name
+    )
+
+    SELECT
+        st.subject_id,
+        st.subject_name,
+        CAST(st.total_marks AS DECIMAL(5,2)) AS total_marks,
+        g.grade_name,
+        g.grade_point
+    FROM SubjectTotals st
+    LEFT JOIN Grades g
+        ON st.total_marks BETWEEN g.min_mark AND g.max_mark
+    ORDER BY st.subject_name;
+END;
+GO
+
+
+-----------------------------------------------------
+---------handle noties-----------------------
+----------------------------------------------------
+CREATE TABLE Notices (
+    notice_id INT IDENTITY(1,1) PRIMARY KEY,  -- Unique ID for each notice
+    notice_title VARCHAR(255) NOT NULL,         -- Title of the notice
+    notice_description TEXT,                    -- Detailed description of the notice
+    notice_date DATE,                  -- Date the notice was created
+    expiry_date DATE,                           -- Expiry date of the notice (if applicable)
+);
+
+CREATE PROCEDURE spAddNotice
+    @notice_title VARCHAR(255),
+    @notice_description TEXT,
+    @notice_date DATE,
+    @expiry_date DATE = NULL  -- Default to NULL if no expiry date is provided
+AS
+BEGIN
+    -- Insert the notice into the Notices table
+    INSERT INTO Notices (notice_title, notice_description, notice_date, expiry_date)
+    VALUES (@notice_title, @notice_description, @notice_date, @expiry_date);
+    
+    -- Optionally, return the ID of the inserted notice (for confirmation or use in further logic)
+    SELECT SCOPE_IDENTITY() AS NewNoticeID;
+END;
+
+
+CREATE PROCEDURE spGetAllNotices
+AS
+BEGIN
+    -- Select all notices in descending order of the notice_date
+    SELECT notice_id, 
+           notice_title, 
+           notice_description, 
+           notice_date, 
+           expiry_date
+    FROM Notices
+    ORDER BY notice_date DESC;  -- Order by notice date in descending order (most recent first)
+END;
+
+Select * From Notices
+
+Select * from Classes
+Select * from Departments
+-------------------------------------------------------
+-----------------Handle Payments ----------------------
+-------------------------------------------------------
+--all classes monthly cost
+CREATE TABLE ClassMonthlyFees (
+    class_fee_id INT IDENTITY(1,1) PRIMARY KEY,
+    class_id INT NOT NULL,
+    department_id INT NOT NULL,
+    monthly_fee DECIMAL(10,2) NOT NULL,
+    effective_from DATE NOT NULL,   -- fee validity start date
+    is_active BIT DEFAULT 1,
+
+    CONSTRAINT FK_class_fee_class 
+        FOREIGN KEY (class_id) REFERENCES Classes(class_id),
+
+    CONSTRAINT FK_class_fee_department
+        FOREIGN KEY (department_id) REFERENCES Departments(department_id),
+
+    -- prevent duplicate active fee for same class + department
+    CONSTRAINT UQ_class_department_fee 
+        UNIQUE (class_id, department_id, effective_from)
+);
+
+INSERT INTO ClassMonthlyFees (class_id, department_id, monthly_fee, effective_from, is_active)
+VALUES
+
+(11, 2, 1800, '2025-01-01', 1); -- Arts
+
+-- Class 12 fees
+INSERT INTO ClassMonthlyFees (class_id, department_id, monthly_fee, effective_from, is_active)
+VALUES
+(12, 1, 2500, '2025-01-01',1),
+(12, 2, 2200, '2025-01-01',1);
+select * FROM ClassMonthlyFees
+
+--monthly fees needs to pay each years
+CREATE TABLE FeeMonths (
+    fee_month_id INT IDENTITY(1,1) PRIMARY KEY,
+    year_id INT NOT NULL,
+    month_no INT NOT NULL,          -- 1 = Jan, 12 = Dec
+    month_name NVARCHAR(20),
+
+    CONSTRAINT UQ_fee_month UNIQUE (year_id, month_no)
+);
+
+INSERT INTO FeeMonths (year_id, month_no, month_name)
+VALUES
+(1, 1, 'January'),
+(1, 2, 'February'),
+(1, 3, 'March'),
+(1, 4, 'April'),
+(1, 5, 'May'),
+(1, 6, 'June'),
+(1, 7, 'July'),
+(1, 8, 'August'),
+(1, 9, 'September'),
+(1, 10, 'October'),
+(1, 11, 'November'),
+(1, 12, 'December');
+
+Select * from FeeMonths
+
+----StudentsMonthlyFrees (important to track payment
+CREATE  TABLE StudentMonthlyFees (
+    student_fee_id INT IDENTITY(1,1) PRIMARY KEY,
+
+    enrollment_id INT NOT NULL,
+    class_fee_id INT NOT NULL,       -- 🔥 link to ClassMonthlyFees
+    fee_month_id INT NOT NULL,
+
+    fee_amount DECIMAL(10,2) NOT NULL,  -- snapshot of monthly fee
+    due_date DATE NOT NULL,
+
+    status NVARCHAR(20) DEFAULT 'Unpaid',
+    -- Unpaid / Paid / Partial / Overdue
+
+    created_at DATETIME DEFAULT GETDATE(),
+    updated_at DATETIME NULL,
+
+    CONSTRAINT FK_student_fee_enrollment 
+        FOREIGN KEY (enrollment_id) REFERENCES Enrollments(enrollment_id),
+
+    CONSTRAINT FK_student_fee_class_fee
+        FOREIGN KEY (class_fee_id) REFERENCES ClassMonthlyFees(class_fee_id),
+
+    CONSTRAINT FK_student_fee_month 
+        FOREIGN KEY (fee_month_id) REFERENCES FeeMonths(fee_month_id),
+
+    CONSTRAINT UQ_enrollment_month 
+        UNIQUE (enrollment_id, fee_month_id),
+
+    CONSTRAINT CK_student_fee_status
+        CHECK (status IN ('Unpaid', 'Paid', 'Partial', 'Overdue'))
+);
+
+
+Select * From Enrollments
+Select * From StudentMonthlyFees
+
+--to handle payment methods
+Select * From StudentPayments
+CREATE TABLE StudentPayments (
+    payment_id INT IDENTITY(1,1) PRIMARY KEY,
+    student_fee_id INT NOT NULL,
+
+    paid_amount DECIMAL(10,2) NOT NULL,
+    payment_date DATETIME DEFAULT GETDATE(),
+    payment_method NVARCHAR(30), -- Cash / bKash / Card
+    reference_no NVARCHAR(100),
+
+    CONSTRAINT FK_payment_student_fee 
+        FOREIGN KEY (student_fee_id) REFERENCES StudentMonthlyFees(student_fee_id)
+); 
+
+
+---sp to generateMonthlyFees for all the active students
+CREATE PROCEDURE spGenerateMonthlyFees
+    @year_id INT,
+    @fee_month_id INT,
+    @due_date DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    /*
+        Insert monthly fees for all ACTIVE enrollments
+        for a given academic year & fee month
+    */
+
+    INSERT INTO StudentMonthlyFees
+    (
+        enrollment_id,
+        class_fee_id,
+        fee_month_id,
+        fee_amount,
+        due_date
+    )
+    SELECT
+        e.enrollment_id,
+        cmf.class_fee_id,
+        @fee_month_id,
+        cmf.monthly_fee,
+        @due_date
+    FROM Enrollments e
+    INNER JOIN Sections s
+        ON e.section_id = s.section_id
+
+    INNER JOIN ClassMonthlyFees cmf
+        ON cmf.class_id = e.class_id
+        AND cmf.department_id = s.department_id
+        AND cmf.is_active = 1
+        AND cmf.effective_from <= @due_date
+
+    WHERE e.year_id = @year_id
+      AND e.status = 'Active'
+
+      -- prevent duplicate monthly fee
+      AND NOT EXISTS
+      (
+          SELECT 1
+          FROM StudentMonthlyFees smf
+          WHERE smf.enrollment_id = e.enrollment_id
+            AND smf.fee_month_id = @fee_month_id
+      );
+END;
+GO
+EXEC spGenerateMonthlyFees
+    @year_id = 1,
+    @fee_month_id = 1,   -- January
+    @due_date = '2026-01-10';
+Select * From StudentMonthlyFees
+select * From Enrollments

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.SqlClient;
+using Microsoft.IdentityModel.Tokens;
 using StudentManagementSystem.Models.Components;
 using StudentManagementSystem.Models.ResultsDtos;
 using System.Data;
@@ -53,6 +54,63 @@ namespace StudentManagementSystem.Repositories.ResultsRepositories
                 return new Response<StudentSubjectResultDto>(false, "no result ");
             }
             return new Response<StudentSubjectResultDto>(true, "result found", subjectResult);
+        }
+
+        //GetStudentSubjectTotals Result for each subject
+        public async Task<Response<List<SubjectTotalResult>>> GetAllSubjectsTotalResultAsync(int enrollment_id)
+        {
+            using var connection = new SqlConnection(connectionString);
+            using var command = new SqlCommand("spGetStudentSubjectTotals", connection) 
+            { 
+                CommandType = CommandType.StoredProcedure,
+            };
+
+            command.Parameters.AddWithValue("@enrollment_id", enrollment_id);
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+            var subjectsResult = new List<SubjectTotalResult>();
+            while(await reader.ReadAsync())
+            {
+                subjectsResult.Add(new SubjectTotalResult()
+                {
+                    Subject_id = reader.GetInt32(0),
+                    Subject_name = reader.GetString(1),
+                    Total_marks = reader.GetDecimal(2),
+                    Grade_name = reader.GetString(3),
+                    Grade_point = reader.GetDecimal(4)
+                });
+            }
+            if (subjectsResult.Count == 0) return new Response<List<SubjectTotalResult>>(false, "Result not found");
+            return new Response<List<SubjectTotalResult>>(true, "all subjects Results", subjectsResult);
+            
+        }
+
+        public async Task<Response<List<SubjectResultsDto>>> GetSubjectDetailResultsAsync(int enrollment_id, int subject_id)
+        {
+            using var connection = new SqlConnection(connectionString);
+            using var command = new SqlCommand("spGetSubjectResultByEnrollment", connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+            };
+            command.Parameters.AddWithValue("@enrollment_id", enrollment_id);
+            command.Parameters.AddWithValue("@subject_id", subject_id);
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+            var subjectResults = new List<SubjectResultsDto>();
+            while(await reader.ReadAsync())
+            {
+                subjectResults.Add(new SubjectResultsDto()
+                {
+                    Subject_id = reader.IsDBNull(0) ? null : reader.GetInt32(0),
+                    Subject_name = reader.IsDBNull(1) ? null : reader.GetString(1),
+                    Exam_type_id = reader.IsDBNull(2) ? null : reader.GetInt32(2),
+                    Type_name = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    Marks = reader.IsDBNull(4) ? null : reader.GetDecimal(4),
+                    Weight_percentage = reader.IsDBNull(5) ? null : reader.GetDecimal(5)
+                });
+            }
+            if (subjectResults.Count == 0) return new Response<List<SubjectResultsDto>>(false, "not found");
+            return new Response<List<SubjectResultsDto>>(true, "Detail Results", subjectResults);
         }
 
         //get results of a student
