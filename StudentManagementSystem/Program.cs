@@ -21,6 +21,8 @@ using StudentManagementSystem.Repositories.ExamRepositories;
 using StudentManagementSystem.Repositories.ResultsRepositories;
 using StudentManagementSystem.Repositories.GradeRepositories;
 using StudentManagementSystem.Repositories.NoticeRepositories;
+using StudentManagementSystem.Repositories.StudentMonthlyFeeRepositories;
+using StudentManagementSystem.Repositories.PaymentRepositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,6 +55,8 @@ builder.Services.AddTransient<IExamRepository, ExamRepository>();
 builder.Services.AddTransient<IResultsRepository, ResultsRepository>();
 builder.Services.AddScoped<IGradesRepository, GradesRepository>();
 builder.Services.AddScoped<INoticeRepository, NoticeRepository>();
+builder.Services.AddScoped<IStudentMonthlyFeeRepository, StudentMonthlyFeeRepository>();
+builder.Services.AddScoped<IStudentPaymentRepository, StudentPaymentRepository>();
 //jwt
 builder.Services.AddAuthentication(option =>
 {

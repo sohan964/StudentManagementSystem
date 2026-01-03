@@ -2679,8 +2679,14 @@ CREATE TABLE StudentPayments (
         FOREIGN KEY (student_fee_id) REFERENCES StudentMonthlyFees(student_fee_id)
 ); 
 
+ALTER TABLE StudentPayments
+ADD payment_status NVARCHAR(20) DEFAULT 'Pending',
+    verified_at DATETIME NULL;
 
+select * from StudentPayments
 ---sp to generateMonthlyFees for all the active students
+Select * from StudentMonthlyFees
+
 CREATE PROCEDURE spGenerateMonthlyFees
     @year_id INT,
     @fee_month_id INT,
@@ -2731,9 +2737,132 @@ BEGIN
       );
 END;
 GO
-EXEC spGenerateMonthlyFees
-    @year_id = 1,
-    @fee_month_id = 1,   -- January
-    @due_date = '2026-01-10';
-Select * From StudentMonthlyFees
-select * From Enrollments
+
+--get a student unpaid monthly fees
+CREATE  PROCEDURE spGetUnpaidMonthsByEnrollment 7
+    @enrollment_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        smf.student_fee_id, 
+        smf.enrollment_id,
+
+        ay.year_id,
+        ay.year_label,
+
+        fm.month_no,
+        fm.month_name,
+
+        smf.fee_amount,
+        ISNULL(SUM(sp.paid_amount), 0) AS paid_amount,
+        (smf.fee_amount - ISNULL(SUM(sp.paid_amount), 0)) AS due_amount,
+
+        smf.due_date,
+
+        CASE
+            WHEN ISNULL(SUM(sp.paid_amount), 0) = 0 THEN 'Unpaid'
+            WHEN ISNULL(SUM(sp.paid_amount), 0) < smf.fee_amount THEN 'Partial'
+            ELSE 'Paid'
+        END AS payment_status
+
+    FROM StudentMonthlyFees smf
+    JOIN FeeMonths fm
+        ON smf.fee_month_id = fm.fee_month_id
+
+    JOIN Academic_years ay
+        ON fm.year_id = ay.year_id
+
+    LEFT JOIN StudentPayments sp
+        ON smf.student_fee_id = sp.student_fee_id
+
+    WHERE smf.enrollment_id = @enrollment_id
+      AND smf.status <> 'Paid'
+
+    GROUP BY
+        smf.student_fee_id,
+        smf.enrollment_id,
+        ay.year_id,
+        ay.year_label,
+        fm.month_no,
+        fm.month_name,
+        smf.fee_amount,
+        smf.due_date,
+        smf.status
+
+    ORDER BY
+        ay.year_id,
+        fm.month_no;
+END;
+GO
+
+
+--sp for payment
+CREATE PROCEDURE spSubmitStudentPayment
+    @student_fee_id INT,
+    @paid_amount DECIMAL(10,2),
+    @payment_method NVARCHAR(30),
+    @reference_no NVARCHAR(100) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @fee_amount DECIMAL(10,2);
+    DECLARE @total_paid DECIMAL(10,2);
+
+    -- Get fee amount
+    SELECT @fee_amount = fee_amount
+    FROM StudentMonthlyFees
+    WHERE student_fee_id = @student_fee_id;
+
+    IF @fee_amount IS NULL
+    BEGIN
+        RAISERROR('Invalid student_fee_id', 16, 1);
+        RETURN;
+    END;
+
+    -- Insert payment as Pending
+    INSERT INTO StudentPayments (
+        student_fee_id,
+        paid_amount,
+        payment_method,
+        reference_no,
+        payment_status
+    )
+    VALUES (
+        @student_fee_id,
+        @paid_amount,
+        @payment_method,
+        @reference_no,
+        'Pending'
+    );
+
+    -- Calculate total ACCEPTED payments
+    SELECT
+        @total_paid = ISNULL(SUM(paid_amount), 0)
+    FROM StudentPayments
+    WHERE student_fee_id = @student_fee_id
+      AND payment_status = 'Accepted';
+
+    -- Update fee status
+    IF @total_paid >= @fee_amount
+    BEGIN
+        UPDATE StudentMonthlyFees
+        SET status = 'Paid'
+        WHERE student_fee_id = @student_fee_id;
+    END
+    ELSE IF @total_paid > 0
+    BEGIN
+        UPDATE StudentMonthlyFees
+        SET status = 'Partial'
+        WHERE student_fee_id = @student_fee_id;
+    END
+    ELSE
+    BEGIN
+        UPDATE StudentMonthlyFees
+        SET status = 'Unpaid'
+        WHERE student_fee_id = @student_fee_id;
+    END;
+END;
+GO
