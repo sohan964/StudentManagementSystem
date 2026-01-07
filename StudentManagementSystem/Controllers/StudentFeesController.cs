@@ -28,7 +28,14 @@ namespace StudentManagementSystem.Controllers
         public async Task<IActionResult> GetUnpaidMonthsByEnrollment([FromRoute] int enrollment_id)
         {
             var result = await _studentMonthlyFeeRepository.GetUnpaidMonthsByEnrollmentAsync(enrollment_id);
-            if(!result.Success) return NotFound(result);
+            //if(!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpGet("get-fee-months/{year_id}")]
+        public async Task<IActionResult> GetFeeMonthsByYear([FromRoute] int year_id)
+        {
+            var result = await _studentMonthlyFeeRepository.GetFeeMonthsAsync(year_id);
             return Ok(result);
         }
     }

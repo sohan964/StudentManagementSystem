@@ -60,5 +60,32 @@ namespace StudentManagementSystem.Repositories.StudentMonthlyFeeRepositories
             return new Response<List<GetUnpaidMonthDto>>(true, "your total due", unpaidMonthList);
         }
 
+
+        //get feeMonths by year_id
+        public async Task<Response<List<FeeMonthDto>>> GetFeeMonthsAsync(int year_id)
+        {
+            using var connection = new SqlConnection(connectionString);
+            using var command = new SqlCommand("spGetFeeMonthsByYear", connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+            };
+            command.Parameters.AddWithValue("@year_id", year_id);
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+            var monthList = new List<FeeMonthDto>();
+            while(await reader.ReadAsync())
+            {
+                monthList.Add(new FeeMonthDto()
+                { 
+                    Fee_month_id = reader.GetInt32(0),
+                    Year_id = reader.GetInt32(1),
+                    Month_no = reader.GetInt32(2),
+                    Month_name = reader.GetString(3),
+                });
+            }
+            if (monthList.Count == 0) return new Response<List<FeeMonthDto>>(false, "no fee months created");
+            return new Response<List<FeeMonthDto>>(true, "all fee month list", monthList);
+        }
+
     }
 }

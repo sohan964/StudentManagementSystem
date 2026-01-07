@@ -22,5 +22,20 @@ namespace StudentManagementSystem.Controllers
             var result = await _paymentRepository.SubmitStudentPaymentAsync(submitPaymentDto);
             return Ok(result);
         }
+
+        [HttpPut("payment-status-update")]
+        public async Task<IActionResult> ApproveOrRejectPayment([FromQuery]int payment_id, [FromQuery] string payment_status)
+        {
+            var result = await _paymentRepository.ApproveOrRejectPaymentAsync(payment_id, payment_status);
+            return Ok(result);
+        }
+
+        [HttpGet("pending-payments")]
+        public async Task<IActionResult> GetPendingPayments()
+        {
+            var result = await _paymentRepository.GetPendingPaymentsAsync();
+            
+            return Ok(result);
+        }
     }
 }

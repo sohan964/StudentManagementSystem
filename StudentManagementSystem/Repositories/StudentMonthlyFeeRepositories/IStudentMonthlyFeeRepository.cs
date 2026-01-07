@@ -7,5 +7,6 @@ namespace StudentManagementSystem.Repositories.StudentMonthlyFeeRepositories
     {
         Task<Response<object>> GenerateMonthlyFeesAsync(GenerateMonthlyFeesDto monthlyFeesDto);
         Task<Response<List<GetUnpaidMonthDto>>> GetUnpaidMonthsByEnrollmentAsync(int enrollment_id);
+        Task<Response<List<FeeMonthDto>>> GetFeeMonthsAsync(int year_id);
     }
 }
