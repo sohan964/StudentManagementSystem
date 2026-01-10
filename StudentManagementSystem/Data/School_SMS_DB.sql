@@ -2610,6 +2610,24 @@ CREATE TABLE FeeMonths (
     CONSTRAINT UQ_fee_month UNIQUE (year_id, month_no)
 );
 
+CREATE PROCEDURE spGetFeeMonthsByYear 1
+    @year_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        fee_month_id,
+        year_id,
+        month_no,
+        month_name
+    FROM FeeMonths
+    WHERE year_id = @year_id
+    ORDER BY month_no;
+END;
+GO
+
+
 INSERT INTO FeeMonths (year_id, month_no, month_name)
 VALUES
 (1, 1, 'January'),
@@ -2737,7 +2755,8 @@ BEGIN
       );
 END;
 GO
-
+select * from StudentPayments
+Select * from StudentMonthlyFees
 --get a student unpaid monthly fees
 CREATE  PROCEDURE spGetUnpaidMonthsByEnrollment 7
     @enrollment_id INT
@@ -2756,14 +2775,45 @@ BEGIN
         fm.month_name,
 
         smf.fee_amount,
-        ISNULL(SUM(sp.paid_amount), 0) AS paid_amount,
-        (smf.fee_amount - ISNULL(SUM(sp.paid_amount), 0)) AS due_amount,
+
+        -- ✅ count ONLY accepted payments
+        ISNULL(SUM(
+            CASE 
+                WHEN sp.payment_status = 'Accepted' 
+                THEN sp.paid_amount 
+                ELSE 0 
+            END
+        ), 0) AS paid_amount,
+
+        -- due amount
+        smf.fee_amount - ISNULL(SUM(
+            CASE 
+                WHEN sp.payment_status = 'Accepted' 
+                THEN sp.paid_amount 
+                ELSE 0 
+            END
+        ), 0) AS due_amount,
 
         smf.due_date,
 
+        -- calculated payment status
         CASE
-            WHEN ISNULL(SUM(sp.paid_amount), 0) = 0 THEN 'Unpaid'
-            WHEN ISNULL(SUM(sp.paid_amount), 0) < smf.fee_amount THEN 'Partial'
+            WHEN ISNULL(SUM(
+                CASE 
+                    WHEN sp.payment_status = 'Accepted' 
+                    THEN sp.paid_amount 
+                    ELSE 0 
+                END
+            ), 0) = 0 THEN 'Unpaid'
+
+            WHEN ISNULL(SUM(
+                CASE 
+                    WHEN sp.payment_status = 'Accepted' 
+                    THEN sp.paid_amount 
+                    ELSE 0 
+                END
+            ), 0) < smf.fee_amount THEN 'Partial'
+
             ELSE 'Paid'
         END AS payment_status
 
@@ -2864,5 +2914,160 @@ BEGIN
         SET status = 'Unpaid'
         WHERE student_fee_id = @student_fee_id;
     END;
+END;
+GO
+
+
+---admin approve to accept or reject Payment
+EXEC spApproveOrRejectPayment 
+    @payment_id = 6,
+    @payment_status = 'Rejected';
+
+
+CREATE PROCEDURE spApproveOrRejectPayment
+    @payment_id INT,
+    @payment_status NVARCHAR(20)  -- Accepted / Rejected
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @student_fee_id INT;
+    DECLARE @fee_amount DECIMAL(10,2);
+    DECLARE @total_paid DECIMAL(10,2);
+    DECLARE @due_date DATE;
+
+    -- Validate status
+    IF @payment_status NOT IN ('Accepted', 'Rejected')
+    BEGIN
+        RAISERROR('Invalid payment status', 16, 1);
+        RETURN;
+    END;
+
+    -- Get student_fee_id
+    SELECT 
+        @student_fee_id = student_fee_id
+    FROM StudentPayments
+    WHERE payment_id = @payment_id;
+
+    IF @student_fee_id IS NULL
+    BEGIN
+        RAISERROR('Invalid payment_id', 16, 1);
+        RETURN;
+    END;
+
+    -- Update payment status
+    UPDATE StudentPayments
+    SET payment_status = @payment_status
+    WHERE payment_id = @payment_id;
+
+    -- ❌ If rejected → STOP (do NOT update fees)
+    IF @payment_status = 'Rejected'
+        RETURN;
+
+    -- Get fee info
+    SELECT
+        @fee_amount = fee_amount,
+        @due_date = due_date
+    FROM StudentMonthlyFees
+    WHERE student_fee_id = @student_fee_id;
+
+    -- Calculate total accepted payments
+    SELECT
+        @total_paid = ISNULL(SUM(paid_amount), 0)
+    FROM StudentPayments
+    WHERE student_fee_id = @student_fee_id
+      AND payment_status = 'Accepted';
+
+    -- Update fee status
+    IF @total_paid >= @fee_amount
+    BEGIN
+        UPDATE StudentMonthlyFees
+        SET status = 'Paid'
+        WHERE student_fee_id = @student_fee_id;
+    END
+    ELSE IF @total_paid > 0
+    BEGIN
+        UPDATE StudentMonthlyFees
+        SET status = 
+            CASE 
+                WHEN @due_date < CAST(GETDATE() AS DATE) 
+                    THEN 'Overdue'
+                ELSE 'Partial'
+            END
+        WHERE student_fee_id = @student_fee_id;
+    END
+    ELSE
+    BEGIN
+        UPDATE StudentMonthlyFees
+        SET status = 
+            CASE 
+                WHEN @due_date < CAST(GETDATE() AS DATE) 
+                    THEN 'Overdue'
+                ELSE 'Unpaid'
+            END
+        WHERE student_fee_id = @student_fee_id;
+    END;
+END;
+GO
+
+--all Pending payments
+CREATE PROCEDURE spGetPendingPaymentsForAdmin
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        sp.payment_id,
+        sp.student_fee_id,
+
+        -- student info
+        s.student_id,
+        s.student_number,
+        s.first_name + ' ' + s.last_name AS student_name,
+
+        -- enrollment context
+        e.enrollment_id,
+        c.class_name,
+        sec.section_name,
+
+        -- month & year
+        ay.year_label,
+        fm.month_no,
+        fm.month_name,
+
+        -- fee info
+        smf.fee_amount,
+        sp.paid_amount,
+
+        -- payment info
+        sp.payment_method,
+        sp.reference_no,
+        sp.payment_date,
+        sp.payment_status
+
+    FROM StudentPayments sp
+    JOIN StudentMonthlyFees smf
+        ON sp.student_fee_id = smf.student_fee_id
+
+    JOIN Enrollments e
+        ON smf.enrollment_id = e.enrollment_id
+
+    JOIN Students s
+        ON e.student_id = s.student_id
+
+    JOIN Classes c
+        ON e.class_id = c.class_id
+
+    JOIN Sections sec
+        ON e.section_id = sec.section_id
+
+    JOIN FeeMonths fm
+        ON smf.fee_month_id = fm.fee_month_id
+
+    JOIN Academic_years ay
+        ON fm.year_id = ay.year_id
+
+    WHERE sp.payment_status = 'Pending'
+    ORDER BY sp.payment_date ASC;
 END;
 GO

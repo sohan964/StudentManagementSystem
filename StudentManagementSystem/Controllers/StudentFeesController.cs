@@ -20,7 +20,7 @@ namespace StudentManagementSystem.Controllers
         public async Task<IActionResult> GenerateMonthlyFees([FromBody] GenerateMonthlyFeesDto monthlyFeesDto)
         {
             var result = await _studentMonthlyFeeRepository.GenerateMonthlyFeesAsync(monthlyFeesDto);
-            if(!result.Success) return BadRequest(result);
+            
             return Ok(result);
         }
 
