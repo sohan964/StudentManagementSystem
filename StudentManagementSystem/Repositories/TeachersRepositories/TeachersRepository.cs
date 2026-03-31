@@ -30,7 +30,42 @@ namespace StudentManagementSystem.Repositories.TeachersRepositories
             var result = await command.ExecuteNonQueryAsync();
             return new Response<object>(true, "teacher successfully added", result);
         }
+        //update
+        public async Task<Response<object>> UpdateTeacherAsync(int teacher_id, UpdateTeacherDto updateTeacherDto)
+        {
+            using var connection = new SqlConnection(connectionString);
+            using var command = new SqlCommand("spUpdateTeacher", connection)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
 
+            command.Parameters.AddWithValue("@teacher_id", teacher_id);
+            command.Parameters.AddWithValue("@teacher_code", updateTeacherDto.teacher_code);
+            command.Parameters.AddWithValue("@first_name", updateTeacherDto.first_name);
+            command.Parameters.AddWithValue("@last_name", updateTeacherDto.last_name);
+            //command.Parameters.AddWithValue("@department_id", updateTeacherDto.Department_id);
+            command.Parameters.AddWithValue("@contact", updateTeacherDto.contact);
+            //command.Parameters.AddWithValue("@hire_date", updateTeacherDto.Hire_date);
+
+            // Handle nullable photo properly
+            if (string.IsNullOrEmpty(updateTeacherDto.photo))
+                command.Parameters.AddWithValue("@photo", DBNull.Value);
+            else
+                command.Parameters.AddWithValue("@photo", updateTeacherDto.photo);
+
+            await connection.OpenAsync();
+
+            var reader = await command.ExecuteReaderAsync();
+
+            string message = "Update completed";
+
+            if (await reader.ReadAsync())
+            {
+                message = reader["Message"]?.ToString() ?? message;
+            }
+
+            return new Response<object>(true, message, null);
+        }
         public async Task<Response<List<TeachersDto>>> GetTeachersAsync()
         {
             using var connection = new SqlConnection(connectionString);

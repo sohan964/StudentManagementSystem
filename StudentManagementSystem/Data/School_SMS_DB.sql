@@ -195,7 +195,6 @@ BEGIN
 END
 
 
-
 --get teachers by Id sp join with Users and department table
 CREATE PROCEDURE spGetTeacherById
     @teacher_id INT
@@ -248,6 +247,54 @@ BEGIN
     LEFT JOIN Departments AS d ON t.department_id = d.department_id
     WHERE t.user_id = @user_id;
 END
+
+--update teacher
+CREATE PROCEDURE spUpdateTeacher
+    @teacher_id INT,
+    @teacher_code NVARCHAR(50),
+    @first_name NVARCHAR(80),
+    @last_name NVARCHAR(80),
+
+    @contact NVARCHAR(80),
+
+    @photo NVARCHAR(255) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- ✅ Check if teacher exists
+        IF NOT EXISTS (
+            SELECT 1 FROM Teachers WHERE teacher_id = @teacher_id
+        )
+        BEGIN
+            SELECT 'Teacher not found' AS Message;
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        -- ✅ Update teacher info
+        UPDATE Teachers
+        SET 
+            teacher_code = @teacher_code,
+            first_name = @first_name,
+            last_name = @last_name,
+            contact = @contact,
+            photo = @photo
+        WHERE teacher_id = @teacher_id;
+
+        COMMIT TRANSACTION;
+
+        SELECT 'Teacher updated successfully' AS Message;
+
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
 
 
 select * From AspNetUserRoles
@@ -1641,7 +1688,7 @@ GO
 --get exam session by year_id, class_id, Section_id, subject_id
 
 
-
+select * from ExamResults
 
 CREATE TABLE ExamResults (
     result_id INT IDENTITY(1,1) PRIMARY KEY,
@@ -1677,6 +1724,46 @@ BEGIN
       AND enrollment_id = @enrollment_id;
 END;
 
+CREATE PROCEDURE spUpdateExamResult
+(
+    @result_id INT,
+    @obtained_marks DECIMAL(5,2)
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    --------------------------------------------------
+    -- 1️⃣ Check if result exists
+    --------------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM ExamResults
+        WHERE result_id = @result_id
+    )
+    BEGIN
+        SELECT 
+            'not_found' AS status,
+            'Result not found.' AS message;
+        RETURN;
+    END
+
+    --------------------------------------------------
+    -- 2️⃣ Update result
+    --------------------------------------------------
+    UPDATE ExamResults
+    SET 
+        obtained_marks = @obtained_marks,
+        updated_at = GETDATE()
+    WHERE result_id = @result_id;
+
+    --------------------------------------------------
+    -- 3️⃣ Return success response
+    --------------------------------------------------
+    SELECT 
+        'success' AS status,
+        'Exam result updated successfully.' AS message,
+        @result_id AS result_id;
+END;
 select * from AspNetUsers
 
 CREATE PROCEDURE spAddExamResult

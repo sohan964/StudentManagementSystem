@@ -10,6 +10,7 @@ namespace StudentManagementSystem.Repositories.ResultsRepositories
         Task<Response<OverAllResultDto>> GetFinalResultByEnrollmentAsync(int? enrollment_id);
         Task<Response<List<SubjectTotalResult>>> GetAllSubjectsTotalResultAsync(int enrollment_id);
         Task<Response<List<SubjectResultsDto>>> GetSubjectDetailResultsAsync(int enrollment_id, int subject_id);
+        Task<Response<object>> UpdateResultAsync(int result_id, decimal obtained_marks);
 
     }
 }

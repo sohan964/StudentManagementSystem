@@ -24,7 +24,14 @@ namespace StudentManagementSystem.Controllers
             return Ok(result);
         }
 
-        [HttpPost("get-result/{exam_session_id}/{enrolloment_id}")]
+        [HttpPut("update-result/{result_id}/{obtained_marks}")]
+        public async Task<IActionResult> UpdateResult([FromRoute]int result_id, [FromRoute] decimal obtained_marks)
+        {
+            var result = await _resultsRepository.UpdateResultAsync(result_id, obtained_marks);
+            return Ok(result);
+        }
+
+        [HttpGet("get-result/{exam_session_id}/{enrolloment_id}")]
         public async Task<IActionResult> GetResultByEnrollment([FromRoute] int? exam_session_id, [FromRoute] int? enrolloment_id)
         {
             var result = await _resultsRepository.GetResultBySessionAndEnrollmentAsync(exam_session_id, enrolloment_id);

@@ -23,6 +23,13 @@ namespace StudentManagementSystem.Controllers
             return Ok(result);
         }
 
+        [HttpPut("update-teacher/{teacher_id}")]
+        public async Task<IActionResult> UpdateTeacher([FromRoute] int teacher_id, [FromBody] UpdateTeacherDto updateTeacherDto)
+        {
+            var result = await _teachersRepository.UpdateTeacherAsync(teacher_id, updateTeacherDto);
+            return Ok(result);
+        }
+
         [HttpGet("teacher-list")]
         public async Task<IActionResult> GetTeachers()
         {

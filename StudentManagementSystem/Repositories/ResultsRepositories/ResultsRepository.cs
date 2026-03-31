@@ -26,6 +26,46 @@ namespace StudentManagementSystem.Repositories.ResultsRepositories
             return new Response<object>(true, "Added success", res);
         }
 
+
+        //update result
+        public async Task<Response<object>> UpdateResultAsync(int result_id, decimal obtained_marks)
+        {
+            using var connection = new SqlConnection(connectionString);
+            using var command = new SqlCommand("spUpdateExamResult", connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+            };
+
+            command.Parameters.AddWithValue("@result_id", result_id);
+            command.Parameters.AddWithValue("@obtained_marks", obtained_marks);
+
+            await connection.OpenAsync();
+
+            using var reader = await command.ExecuteReaderAsync();
+
+            string status = "error";
+            string message = "Something went wrong";
+            int updatedId = 0;
+
+            if (await reader.ReadAsync())
+            {
+                status = reader["status"]?.ToString() ?? "error";
+                message = reader["message"]?.ToString() ?? message;
+
+                if (status == "success")
+                {
+                    updatedId = Convert.ToInt32(reader["result_id"]);
+                }
+            }
+
+            return new Response<object>(
+                status == "success",
+                message,
+                updatedId
+            );
+        }
+
+
         //get result by session_id and enrollment_id
         public async Task<Response<StudentSubjectResultDto>> GetResultBySessionAndEnrollmentAsync(int? exam_session_id, int? enrollment_id)
         {
