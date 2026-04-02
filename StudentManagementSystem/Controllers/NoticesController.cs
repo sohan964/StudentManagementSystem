@@ -24,6 +24,13 @@ namespace StudentManagementSystem.Controllers
             return Ok(result);
         }
 
+        [HttpPut("update-notice/{notice_id}")]
+        public async Task<IActionResult> UpdateNotice([FromRoute]int notice_id, [FromBody] UpdateNoticeDto dto)
+        {
+            var result = await _noticeRepository.UpdateNoticeAsync(notice_id, dto);
+            return Ok(result);
+        }
+
         [HttpPost("add-notice")]
         public async Task<IActionResult> AddNotice([FromBody] AddNoticeDto notice)
         {

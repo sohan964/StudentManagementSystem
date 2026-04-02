@@ -2648,6 +2648,51 @@ BEGIN
     ORDER BY notice_date DESC;  -- Order by notice date in descending order (most recent first)
 END;
 
+CREATE PROCEDURE spUpdateNotice
+(
+    @notice_id INT,
+    @notice_title VARCHAR(255),
+    @notice_description TEXT,
+    @notice_date DATE,
+    @expiry_date DATE = NULL
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    --------------------------------------------------
+    -- 1️⃣ Check if notice exists
+    --------------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM Notices WHERE notice_id = @notice_id
+    )
+    BEGIN
+        SELECT 
+            'not_found' AS status,
+            'Notice not found.' AS message;
+        RETURN;
+    END
+
+    --------------------------------------------------
+    -- 2️⃣ Update notice
+    --------------------------------------------------
+    UPDATE Notices
+    SET 
+        notice_title = @notice_title,
+        notice_description = @notice_description,
+        notice_date = @notice_date,
+        expiry_date = @expiry_date
+    WHERE notice_id = @notice_id;
+
+    --------------------------------------------------
+    -- 3️⃣ Return success
+    --------------------------------------------------
+    SELECT 
+        'success' AS status,
+        'Notice updated successfully.' AS message,
+        @notice_id AS notice_id;
+END;
+
 Select * From Notices
 
 Select * from Classes

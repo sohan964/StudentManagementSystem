@@ -53,5 +53,41 @@ namespace StudentManagementSystem.Repositories.NoticeRepositories
             return new Response<object>(true, "Notice Added successfully");
 
         }
+
+        public async Task<Response<object>> UpdateNoticeAsync(int notice_id, UpdateNoticeDto updateNotice)
+        {
+            using var connection = new SqlConnection(connectionString);
+            using var command = new SqlCommand("spUpdateNotice", connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+            };
+
+            command.Parameters.AddWithValue("@notice_id", notice_id);
+            command.Parameters.AddWithValue("@notice_title", updateNotice.Notice_title);
+            command.Parameters.AddWithValue("@notice_description", updateNotice.Notice_description);
+            command.Parameters.AddWithValue("@notice_date", updateNotice.Notice_date);
+            command.Parameters.AddWithValue("@expiry_date",
+                updateNotice.Expiry_date.HasValue
+                    ? updateNotice.Expiry_date.Value
+                    : DBNull.Value);
+
+            await connection.OpenAsync();
+
+            using var reader = await command.ExecuteReaderAsync();
+
+            string status = "error";
+            string message = "Something went wrong";
+
+            if (await reader.ReadAsync())
+            {
+                status = reader["status"]?.ToString() ?? "error";
+                message = reader["message"]?.ToString() ?? message;
+            }
+
+            return new Response<object>(
+                status == "success",
+                message
+            );
+        }
     }
 }
