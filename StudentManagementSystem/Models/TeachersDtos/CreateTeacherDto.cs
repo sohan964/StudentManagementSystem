@@ -10,5 +10,6 @@
         public string? Contact {  get; set; }
         //public DateOnly Hire_date { get; set; }
         public string? Photo { get; set; }
+        public string? description { get; set; }
     }
 }

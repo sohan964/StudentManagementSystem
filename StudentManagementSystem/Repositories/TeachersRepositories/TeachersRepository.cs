@@ -25,6 +25,7 @@ namespace StudentManagementSystem.Repositories.TeachersRepositories
             command.Parameters.AddWithValue("@contact", createTeacherDto.Contact);
             command.Parameters.AddWithValue("@hire_date", DateOnly.FromDateTime(DateTime.Today));
             command.Parameters.AddWithValue("@photo", createTeacherDto.Photo);
+            command.Parameters.AddWithValue("@description", createTeacherDto.description);
 
             await connection.OpenAsync();
             var result = await command.ExecuteNonQueryAsync();
@@ -52,6 +53,12 @@ namespace StudentManagementSystem.Repositories.TeachersRepositories
                 command.Parameters.AddWithValue("@photo", DBNull.Value);
             else
                 command.Parameters.AddWithValue("@photo", updateTeacherDto.photo);
+
+            if (string.IsNullOrEmpty(updateTeacherDto.description))
+                command.Parameters.AddWithValue("@description", DBNull.Value);
+            else
+                command.Parameters.AddWithValue("@description", updateTeacherDto.description);
+
 
             await connection.OpenAsync();
 
@@ -155,7 +162,8 @@ namespace StudentManagementSystem.Repositories.TeachersRepositories
                     User_id = reader.GetString(9),
                     UserName = reader.GetString(10),
                     Email = reader.GetString(11),
-                    PhoneNumber = reader.IsDBNull(12) ? null : reader.GetString(12)
+                    PhoneNumber = reader.IsDBNull(12) ? null : reader.GetString(12),
+                    description = reader.IsDBNull(13) ? null : reader.GetString(13)
                 };
             }
             return new Response<TeacherInfoDto>(true, "the teacher", teacher);
@@ -189,7 +197,8 @@ namespace StudentManagementSystem.Repositories.TeachersRepositories
                     User_id = reader.GetString(9),
                     UserName = reader.GetString(10),
                     Email = reader.GetString(11),
-                    PhoneNumber = reader.IsDBNull(12) ? null : reader.GetString(12)
+                    PhoneNumber = reader.IsDBNull(12) ? null : reader.GetString(12),
+                    description = reader.IsDBNull(13) ? null : reader.GetString(13)
                 };
             }
             return new Response<TeacherInfoDto>(true, "the teacher", teacher);

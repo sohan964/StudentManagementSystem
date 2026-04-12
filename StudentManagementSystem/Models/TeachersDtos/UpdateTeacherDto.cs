@@ -7,5 +7,6 @@
         public string last_name { get; set; } = string.Empty;
         public string contact { get; set; } = string.Empty;
         public string? photo { get; set; }
+        public string? description { get; set; }
     }
 }
