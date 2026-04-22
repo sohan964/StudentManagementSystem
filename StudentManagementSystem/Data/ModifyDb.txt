@@ -1,0 +1,44 @@
+﻿******first change********
+CREATE PROCEDURE spGetStudentPaymentsByEnrollment 7
+    @enrollment_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        -- Fee Info
+        smf.student_fee_id,
+        smf.enrollment_id,
+        smf.fee_amount,
+        smf.due_date,
+        smf.status AS fee_status,
+
+        -- Month Info
+        fm.fee_month_id,
+        fm.month_name,
+
+        -- Payment Info
+        sp.payment_id,
+        sp.paid_amount,
+        sp.payment_date,
+        sp.payment_method,
+        sp.reference_no,
+        sp.payment_status
+
+    FROM StudentMonthlyFees smf
+
+    LEFT JOIN StudentPayments sp
+        ON smf.student_fee_id = sp.student_fee_id
+
+    LEFT JOIN FeeMonths fm
+        ON smf.fee_month_id = fm.fee_month_id
+
+    WHERE smf.enrollment_id = @enrollment_id
+
+    ORDER BY fm.fee_month_id ASC, sp.payment_date ASC;
+END;
+
+
+
+****ssecond***change*******
+

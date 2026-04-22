@@ -8,5 +8,6 @@ namespace StudentManagementSystem.Repositories.PaymentRepositories
         Task<Response<object>> SubmitStudentPaymentAsync(SubmitPaymentDto submitPayment);
         Task<Response<object>> ApproveOrRejectPaymentAsync(int payment_id, string payment_status);
         Task<Response<List<PendingPaymentDto>>> GetPendingPaymentsAsync();
+        Task<Response<List<GetStudentPaymentDto>>> GetStudentPaymentsByEnrollmentAsync(int? enrollmentId);
     }
 }

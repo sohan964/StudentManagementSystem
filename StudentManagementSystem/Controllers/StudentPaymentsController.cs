@@ -37,5 +37,12 @@ namespace StudentManagementSystem.Controllers
             
             return Ok(result);
         }
+
+        [HttpGet("student-payments/{enrollmentId}")]
+        public async Task<IActionResult> GetStudentPaymentByEnrollment([FromRoute]int enrollmentId)
+        {
+            var result = await _paymentRepository.GetStudentPaymentsByEnrollmentAsync(enrollmentId);
+            return Ok(result);
+        }
     }
 }

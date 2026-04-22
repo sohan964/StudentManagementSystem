@@ -81,5 +81,59 @@ namespace StudentManagementSystem.Repositories.PaymentRepositories
             if (pendingPaymentList.Count == 0) return new Response<List<PendingPaymentDto>>(false, "No Pending Paymensts");
             return new Response<List<PendingPaymentDto>>(true, "All Pending Payments list", pendingPaymentList);
         }
+
+        public async Task<Response<List<GetStudentPaymentDto>>> GetStudentPaymentsByEnrollmentAsync(int? enrollmentId)
+        {
+            using var connection = new SqlConnection(connectionString);
+            using var command = new SqlCommand("spGetStudentPaymentsByEnrollment", connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+            };
+            command.Parameters.AddWithValue("@enrollment_id", enrollmentId);
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+            var studentPayments = new List<GetStudentPaymentDto>();
+            while(await reader.ReadAsync())
+            {
+                studentPayments.Add(new GetStudentPaymentDto()
+                {
+                    student_fee_id = reader.GetInt32(0),
+                    enrollment_id = reader.GetInt32(1),
+
+                    fee_amount = reader.GetDecimal(2),
+
+                    due_date = reader.IsDBNull(3)
+                ? null
+                : DateOnly.FromDateTime(reader.GetDateTime(3)),
+
+                    fee_status = reader.IsDBNull(4) ? null : reader.GetString(4),
+
+                    fee_month_id = reader.IsDBNull(5) ? null : reader.GetInt32(5),
+
+                    month_name = reader.IsDBNull(6) ? null : reader.GetString(6),
+
+                    payment_id = reader.IsDBNull(7) ? null : reader.GetInt32(7),
+
+                    paid_amount = reader.IsDBNull(8) ? null : reader.GetDecimal(8),
+
+                    payment_date = reader.IsDBNull(9)
+                ? null
+                : reader.GetDateTime(9),
+
+                    payment_method = reader.IsDBNull(10) ? null : reader.GetString(10),
+
+                    reference_no = reader.IsDBNull(11) ? null : reader.GetString(11),
+
+                    payment_status = reader.IsDBNull(12) ? null : reader.GetString(12),
+                });
+            }
+
+            if (studentPayments.Count == 0)
+                return new Response<List<GetStudentPaymentDto>>(false, "No payments found");
+
+            return new Response<List<GetStudentPaymentDto>>(true, "Student payments retrieved", studentPayments);
+
+
+        }
     }
 }
